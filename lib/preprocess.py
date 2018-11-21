@@ -60,6 +60,10 @@ def data_norm(data, meta_info):
     return normalized_data
 
 
+def to_2d_array(array):
+    return numpy.array([numpy.array([x]) for x in array])
+
+
 if __name__ == '__main__':
     train_x, train_y, test_x = load_data()
     meta_info_train_x = extract_meta_info(train_x)
@@ -70,20 +74,27 @@ if __name__ == '__main__':
     normalized_train_x = data_norm(train_x, meta_info_train_x)
     normalized_test_x = data_norm(test_x, meta_info_test_x)
 
-    pca = PCA(n_components=2)
-    pca.fit(train_x)
-    print(pca.explained_variance_ratio_)
-    print(pca.singular_values_)
+    fig, ax = plt.subplots()
 
-    print(pca.transform([train_x.values[0]]), train_y[0])
-    print(pca.transform([train_x.values[100]]), train_y[100])
-    print(pca.transform([train_x.values[50]]), train_y[50])
-
-    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    pca_transform = pca.transform(train_x.values)
-    Y = pca_transform[:, 1]
-    X = pca_transform[:, 0]
-    Z = numpy.array([numpy.array([x]) for x in train_y.values])
-    ax.plot_wireframe(X, Y, Z)
+    X = to_2d_array(PCA(n_components=1).fit_transform(train_x[["YearBuilt"]].values))
+
+    Y = to_2d_array(PCA(n_components=1).fit_transform(train_x[["GarageType",
+                                                               "GarageYrBlt",
+                                                               "GarageFinish",
+                                                               "GarageCars",
+                                                               "GarageArea",
+                                                               "GarageQual",
+                                                               "GarageCond"]].values))
+    Z = to_2d_array(train_y.values)
+    ax.scatter(X, Y, Z)
+
+    ax.set_xlabel('YearBuilt')
+    ax.set_ylabel('Functional')
+    ax.set_zlabel('SalePrice')
+
+    # ax.plot(to_2d_array(train_x["YearBuilt"].values), to_2d_array(train_y.values), 'x')
+    # ax.plot(pca_transform, to_2d_array(train_y.values), 'x')
+    ax.grid()
+    # fig.savefig("test.png")
     plt.show()
