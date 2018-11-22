@@ -1,10 +1,10 @@
-from json import dumps
-from logging import warning, info
+from logging import warning, info, getLogger, INFO
 
 import matplotlib.pyplot as plt
-import numpy
 import pandas
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+
+getLogger().setLevel(INFO)
 
 
 def extract_type(value):
@@ -34,7 +34,7 @@ def extract_meta_info(csv):
             warning("'{}' column has different data type: {}".format(key, type_set))
 
         if "<class 'str'>" in meta[key]["type"]:
-            meta[key]["value_set"] = list(value_set)
+            meta[key]["value_set"] = value_set
         else:
             meta[key]["stats"] = {
                 "mean": csv[key].mean(),
@@ -61,10 +61,6 @@ def data_norm(data, meta_info):
     return normalized_data
 
 
-def to_2d_array(array):
-    return numpy.array([numpy.array([x]) for x in array])
-
-
 def generate_correlation_plots():
     fig, ax = plt.subplots(20, 4, figsize=(20, 80))
     for feature_idx, feature in enumerate(train_x.keys()):
@@ -89,9 +85,23 @@ if __name__ == '__main__':
     meta_info_test_x = extract_meta_info(test_x)
 
     for label in meta_info_train_x:
-        print(label + " =============================================")
-        print(dumps(meta_info_train_x[label], indent=2))
-        print(dumps(meta_info_test_x[label], indent=2))
+        info(label)
+        if "<class 'str'>" in meta_info_train_x[label]["type"]:
+            diff = meta_info_test_x[label]["value_set"] - meta_info_train_x[label]["value_set"]
+            info(diff)
+            if len(diff) > 0:
+                warning(diff)
+        else:
+            test_stats = meta_info_test_x[label]["stats"]
+            train_stats = meta_info_train_x[label]["stats"]
 
-    # normalized_train_x = data_norm(train_x, meta_info_train_x)
-    # normalized_test_x = data_norm(test_x, meta_info_test_x)
+            info("   train\ttest")
+
+            train_min, test_min, train_max, test_max = train_stats["min"], test_stats["min"], \
+                                                       train_stats["max"], test_stats["max"]
+
+            info("min: {},\t{}".format(train_min, test_min))
+            info("max: {},\t{}".format(train_max, test_max))
+            if train_min != test_min or train_max != test_max:
+                warning("train_min = {}, train_max = {}".format(train_min, train_max))
+                warning("test_min = {}, test_max = {}".format(test_min, test_max))
