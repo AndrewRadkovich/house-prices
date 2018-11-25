@@ -1,0 +1,507 @@
+{
+  "": {
+    "feature_labels": [
+      "MSSubClass: Identifies the type of dwelling involved in the sale.",
+      "20",
+      "30",
+      "40",
+      "45",
+      "50",
+      "60",
+      "70",
+      "75",
+      "80",
+      "85",
+      "90",
+      "120",
+      "150",
+      "160",
+      "180",
+      "190"
+    ]
+  },
+  "MSZoning": {
+    "feature_labels": [
+      "A",
+      "C",
+      "FV",
+      "I",
+      "RH",
+      "RL",
+      "RP",
+      "RM"
+    ]
+  },
+  "Street": {
+    "feature_labels": [
+      "Grvl",
+      "Pave"
+    ]
+  },
+  "Alley": {
+    "feature_labels": [
+      "Grvl",
+      "Pave",
+      "NA "
+    ]
+  },
+  "LotShape": {
+    "feature_labels": [
+      "Reg",
+      "IR1",
+      "IR2",
+      "IR3"
+    ]
+  },
+  "LandContour": {
+    "feature_labels": [
+      "Lvl",
+      "Bnk",
+      "HLS",
+      "Low"
+    ]
+  },
+  "Utilities": {
+    "feature_labels": [
+      "AllPub",
+      "NoSewr",
+      "NoSeWa",
+      "ELO"
+    ]
+  },
+  "LotConfig": {
+    "feature_labels": [
+      "Inside",
+      "Corner",
+      "CulDSac",
+      "FR2",
+      "FR3"
+    ]
+  },
+  "LandSlope": {
+    "feature_labels": [
+      "Gtl",
+      "Mod",
+      "Sev"
+    ]
+  },
+  "Neighborhood": {
+    "feature_labels": [
+      "Blmngtn",
+      "Blueste",
+      "BrDale",
+      "BrkSide",
+      "ClearCr",
+      "CollgCr",
+      "Crawfor",
+      "Edwards",
+      "Gilbert",
+      "IDOTRR",
+      "MeadowV",
+      "Mitchel",
+      "Names",
+      "NoRidge",
+      "NPkVill",
+      "NridgHt",
+      "NWAmes",
+      "OldTown",
+      "SWISU",
+      "Sawyer",
+      "SawyerW",
+      "Somerst",
+      "StoneBr",
+      "Timber",
+      "Veenker"
+    ]
+  },
+  "Condition1": {
+    "feature_labels": [
+      "Artery",
+      "Feedr",
+      "Norm",
+      "RRNn",
+      "RRAn",
+      "PosN",
+      "PosA",
+      "RRNe",
+      "RRAe"
+    ]
+  },
+  "Condition2": {
+    "feature_labels": [
+      "Artery",
+      "Feedr",
+      "Norm",
+      "RRNn",
+      "RRAn",
+      "PosN",
+      "PosA",
+      "RRNe",
+      "RRAe"
+    ]
+  },
+  "BldgType": {
+    "feature_labels": [
+      "1Fam",
+      "2FmCon",
+      "Duplx",
+      "TwnhsE",
+      "TwnhsI"
+    ]
+  },
+  "HouseStyle": {
+    "feature_labels": [
+      "1Story",
+      "1.5Fin",
+      "1.5Unf",
+      "2Story",
+      "2.5Fin",
+      "2.5Unf",
+      "SFoyer",
+      "SLvl"
+    ]
+  },
+  "OverallQual": {
+    "feature_labels": [
+      "10",
+      "9",
+      "8",
+      "7",
+      "6",
+      "5",
+      "4",
+      "3",
+      "2",
+      "1"
+    ]
+  },
+  "OverallCond": {
+    "feature_labels": [
+      "10",
+      "9",
+      "8",
+      "7",
+      "6",
+      "5",
+      "4",
+      "3",
+      "2",
+      "1"
+    ]
+  },
+  "RoofStyle": {
+    "feature_labels": [
+      "Flat",
+      "Gable",
+      "Gambrel",
+      "Hip",
+      "Mansard",
+      "Shed"
+    ]
+  },
+  "RoofMatl": {
+    "feature_labels": [
+      "ClyTile",
+      "CompShg",
+      "Membran",
+      "Metal",
+      "Roll",
+      "Tar&Grv",
+      "WdShake",
+      "WdShngl"
+    ]
+  },
+  "Exterior1st": {
+    "feature_labels": [
+      "AsbShng",
+      "AsphShn",
+      "BrkComm",
+      "BrkFace",
+      "CBlock",
+      "CemntBd",
+      "HdBoard",
+      "ImStucc",
+      "MetalSd",
+      "Other",
+      "Plywood",
+      "PreCast",
+      "Stone",
+      "Stucco",
+      "VinylSd",
+      "Wd Sdng",
+      "WdShing"
+    ]
+  },
+  "Exterior2nd": {
+    "feature_labels": [
+      "AsbShng",
+      "AsphShn",
+      "BrkComm",
+      "BrkFace",
+      "CBlock",
+      "CemntBd",
+      "HdBoard",
+      "ImStucc",
+      "MetalSd",
+      "Other",
+      "Plywood",
+      "PreCast",
+      "Stone",
+      "Stucco",
+      "VinylSd",
+      "Wd Sdng",
+      "WdShing"
+    ]
+  },
+  "MasVnrType": {
+    "feature_labels": [
+      "BrkCmn",
+      "BrkFace",
+      "CBlock",
+      "None",
+      "Stone"
+    ]
+  },
+  "ExterQual": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po"
+    ]
+  },
+  "ExterCond": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po"
+    ]
+  },
+  "Foundation": {
+    "feature_labels": [
+      "BrkTil",
+      "CBlock",
+      "PConc",
+      "Slab",
+      "Stone",
+      "Wood"
+    ]
+  },
+  "BsmtQual": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po",
+      "NA"
+    ]
+  },
+  "BsmtCond": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po",
+      "NA"
+    ]
+  },
+  "BsmtExposure": {
+    "feature_labels": [
+      "Gd",
+      "Av",
+      "Mn",
+      "No",
+      "NA"
+    ]
+  },
+  "BsmtFinType1": {
+    "feature_labels": [
+      "GLQ",
+      "ALQ",
+      "BLQ",
+      "Rec",
+      "LwQ",
+      "Unf",
+      "NA"
+    ]
+  },
+  "BsmtFinType2": {
+    "feature_labels": [
+      "GLQ",
+      "ALQ",
+      "BLQ",
+      "Rec",
+      "LwQ",
+      "Unf",
+      "NA"
+    ]
+  },
+  "Heating": {
+    "feature_labels": [
+      "Floor",
+      "GasA",
+      "GasW",
+      "Grav",
+      "OthW",
+      "Wall"
+    ]
+  },
+  "HeatingQC": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po"
+    ]
+  },
+  "CentralAir": {
+    "feature_labels": [
+      "N",
+      "Y"
+    ]
+  },
+  "Electrical": {
+    "feature_labels": [
+      "SBrkr",
+      "FuseA",
+      "FuseF",
+      "FuseP",
+      "Mix"
+    ]
+  },
+  "KitchenQual": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po"
+    ]
+  },
+  "Functional": {
+    "feature_labels": [
+      "Typ",
+      "Min1",
+      "Min2",
+      "Mod",
+      "Maj1",
+      "Maj2",
+      "Sev",
+      "Sal"
+    ]
+  },
+  "FireplaceQu": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po",
+      "NA"
+    ]
+  },
+  "GarageType": {
+    "feature_labels": [
+      "2Types",
+      "Attchd",
+      "Basment",
+      "BuiltIn",
+      "CarPort",
+      "Detchd",
+      "NA"
+    ]
+  },
+  "GarageFinish": {
+    "feature_labels": [
+      "Fin",
+      "RFn",
+      "Unf",
+      "NA"
+    ]
+  },
+  "GarageQual": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po",
+      "NA"
+    ]
+  },
+  "GarageCond": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "Po",
+      "NA"
+    ]
+  },
+  "PavedDrive": {
+    "feature_labels": [
+      "Y",
+      "P",
+      "N"
+    ]
+  },
+  "PoolQC": {
+    "feature_labels": [
+      "Ex",
+      "Gd",
+      "TA",
+      "Fa",
+      "NA"
+    ]
+  },
+  "Fence": {
+    "feature_labels": [
+      "GdPrv",
+      "MnPrv",
+      "GdWo",
+      "MnWw",
+      "NA"
+    ]
+  },
+  "MiscFeature": {
+    "feature_labels": [
+      "Elev",
+      "Gar2",
+      "Othr",
+      "Shed",
+      "TenC",
+      "NA"
+    ]
+  },
+  "SaleType": {
+    "feature_labels": [
+      "WD ",
+      "CWD",
+      "VWD",
+      "New",
+      "COD",
+      "Con",
+      "ConLw",
+      "ConLI",
+      "ConLD",
+      "Oth"
+    ]
+  },
+  "SaleCondition": {
+    "feature_labels": [
+      "Normal",
+      "Abnorml",
+      "AdjLand",
+      "Alloca",
+      "Family",
+      "Partial"
+    ]
+  }
+}
