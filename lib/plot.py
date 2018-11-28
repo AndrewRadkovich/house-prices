@@ -3,6 +3,7 @@ import numpy as np
 
 from scipy import optimize
 from sklearn.preprocessing import LabelEncoder
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def plot_two_features_correlation(column_oriented_data, x_feature, y_feature):
@@ -23,6 +24,18 @@ def plot_2d_simple(x, y):
     p, e = optimize.curve_fit(piecewise_linear, x, y)
     plt.plot(x, y)
     plt.plot(x, piecewise_linear(x, *p))
+    plt.show()
+
+
+def plot_3d_simple(x, y, z):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(x, y, z)
+
+    ax.set_xlabel('X Label')
+    ax.set_ylabel('Y Label')
+    ax.set_zlabel('Z Label')
+
     plt.show()
 
 
