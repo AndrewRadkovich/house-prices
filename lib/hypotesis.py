@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
-from lib.plot import plot_3d_simple
+from lib.plot import plot_3d_simple, plot_2d_simple, plot_two_features_correlation
 
 
 def fill_nans(data: pd.DataFrame, converters):
@@ -49,6 +50,27 @@ def compose_year_built_and_garage_year_built(data: pd.DataFrame) -> None:
     plot_3d_simple(x, y, z)
 
 
+def check_correlation_of_rows_with_garage_and_without(data: pd.DataFrame):
+    explicit_converters = {
+        "GarageCond": lambda value, row: isnan_to(value, "NA"),
+        "GarageQual": lambda value, row: isnan_to(value, "NA"),
+        "GarageFinish": lambda value, row: isnan_to(value, "NA"),
+        "GarageType": lambda value, row: isnan_to(value, "NA"),
+        "GarageYrBlt": lambda value, row: isnan_to(value, 0.0)
+    }
+
+    fill_nans(data, explicit_converters)
+
+    overall_quality = 7
+    with_garage = data[data["OverallQual"] >= overall_quality]
+    no_garage = data[data["OverallQual"] < overall_quality]
+
+    plt.plot(with_garage["YearBuilt"].values, with_garage["SalePrice"].values, '.')
+    plt.plot(no_garage["YearBuilt"].values, no_garage["SalePrice"].values, '.')
+    plt.savefig('no_garage.png')
+    plt.show()
+
+
 if __name__ == '__main__':
     train = pd.read_csv("../dataset/train.csv")
-    compose_year_built_and_garage_year_built(train)
+    check_correlation_of_rows_with_garage_and_without(train)

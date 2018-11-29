@@ -6,8 +6,8 @@ from sklearn.preprocessing import LabelEncoder
 from mpl_toolkits.mplot3d import Axes3D
 
 
-def plot_two_features_correlation(column_oriented_data, x_feature, y_feature):
-    plt.plot(column_oriented_data[x_feature].values, column_oriented_data[y_feature].values, 'x')
+def plot_two_features_correlation(column_oriented_data, x_feature, y_feature, pattern='x'):
+    plt.plot(column_oriented_data[x_feature].values, column_oriented_data[y_feature].values, pattern)
     plt.xlabel(x_feature)
     plt.ylabel(y_feature)
     plt.show()
