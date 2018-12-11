@@ -138,7 +138,8 @@ def run_pipeline():
     results = {}
 
     for description, regressor in regressors:
-        info("Started: {}, {}".format(description, regressor))
+        description = "{}".format(regressor)
+        info("Started: {}".format(description))
         results[description] = {
             "rmse": [],
             "error": "no_error"
