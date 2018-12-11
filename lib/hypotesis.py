@@ -73,4 +73,10 @@ def check_correlation_of_rows_with_garage_and_without(data: pd.DataFrame):
 
 if __name__ == '__main__':
     train = pd.read_csv("../dataset/train.csv")
-    check_correlation_of_rows_with_garage_and_without(train)
+    x_feature = "YearBuilt"
+    y_feature = "SalePrice"
+    # plt.plot(train[x_feature].values, np.log(1 + train[y_feature].values), ".")
+    plt.plot(train[x_feature].values, train[y_feature].values, ".")
+    plt.xlabel(x_feature)
+    plt.ylabel(y_feature)
+    plt.show()

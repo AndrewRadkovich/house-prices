@@ -2,6 +2,7 @@ from logging import info, error, getLogger, INFO
 
 import numpy as np
 import pandas as pd
+from sklearn import metrics
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
@@ -18,23 +19,6 @@ def load_data():
     train_y = train_csv["SalePrice"]
     test_x = test_csv.drop(["Id"], axis=1)
     return train_x, train_y, test_x
-
-
-def data_norm(data, meta_info):
-    min_max = MinMaxScaler()
-    for key in data:
-        if len(meta_info[key]["type"]) > 1:
-            le = LabelEncoder()
-            string_values = list(map(lambda v: str(v), data[key]))
-            data[key] = le.fit_transform(string_values)
-        else:
-            if meta_info[key]["type"] in ["<class 'int'>", "<class 'float'>"]:
-                data[key] = data[key]
-            else:
-                le = LabelEncoder()
-                data[key] = le.fit_transform(data[key])
-    normalized_data = min_max.fit_transform(data[:])
-    return normalized_data
 
 
 def isnan(value):
@@ -125,9 +109,9 @@ def min_max(encoded):
     return MinMaxScaler().fit_transform(encoded)
 
 
-def root_mean_square_log_error(y_pred, y_test):
-    assert len(y_test) == len(y_pred)
-    return np.sqrt(np.mean((np.log(1 + y_pred) - np.log(1 + y_test)) ** 2))
+def root_mean_square_error(y_predicted, y_actual):
+    assert len(y_actual) == len(y_predicted)
+    return np.sqrt(metrics.mean_squared_error(y_actual, y_predicted))
 
 
 def run_pipeline():
@@ -143,7 +127,8 @@ def run_pipeline():
 
     # scale data
     scaled_submission = min_max(encoded_submission.values)
-    scaled_target = min_max(target.values.reshape(-1, 1))
+    target_log = np.log(target.values)
+    scaled_target = min_max(target_log.reshape(-1, 1))
     scaled_data = min_max(encoded_data.values)
 
     regressors = [
@@ -153,23 +138,23 @@ def run_pipeline():
     results = {}
 
     for description, regressor in regressors:
-        info("Started: {}".format(description))
+        info("Started: {}, {}".format(description, regressor))
         results[description] = {
-            "rmsle": [],
+            "rmse": [],
             "error": "no_error"
         }
 
         try:
-            rskf = KFold(n_splits=3)
-            for train_index, test_index in rskf.split(scaled_data, scaled_target):
+            train_test_splitter = KFold(n_splits=5)
+            for train_index, test_index in train_test_splitter.split(scaled_data, scaled_target):
                 train_data, test_data = scaled_data[train_index], scaled_data[test_index]
                 train_target, test_target = scaled_target[train_index], scaled_target[test_index]
 
                 regressor.fit(train_data, train_target)
-                predicted_target = regressor.predict(test_data)
+                predicted_target = regressor.predict(X=test_data)
 
-                rmsle = root_mean_square_log_error(y_pred=predicted_target, y_test=test_target)
-                results[description]["rmsle"].append(rmsle)
+                rmse = root_mean_square_error(y_predicted=predicted_target, y_actual=test_target)
+                results[description]["rmse"].append(rmse)
 
         except Exception as e:
             error_message = "Error occurred while executing {}: {}".format(description, e)
