@@ -1,7 +1,6 @@
 {
-  "": {
+  "MSSubClass": {
     "feature_labels": [
-      "MSSubClass: Identifies the type of dwelling involved in the sale.",
       "20",
       "30",
       "40",
@@ -23,7 +22,7 @@
   "MSZoning": {
     "feature_labels": [
       "A",
-      "C",
+      "C (all)",
       "FV",
       "I",
       "RH",
@@ -42,7 +41,7 @@
     "feature_labels": [
       "Grvl",
       "Pave",
-      "NA "
+      "NA"
     ]
   },
   "LotShape": {
@@ -99,7 +98,7 @@
       "IDOTRR",
       "MeadowV",
       "Mitchel",
-      "Names",
+      "NAmes",
       "NoRidge",
       "NPkVill",
       "NridgHt",
@@ -143,8 +142,9 @@
   "BldgType": {
     "feature_labels": [
       "1Fam",
-      "2FmCon",
-      "Duplx",
+      "2fmCon",
+      "Duplex",
+      "Twnhs",
       "TwnhsE",
       "TwnhsI"
     ]
@@ -159,34 +159,6 @@
       "2.5Unf",
       "SFoyer",
       "SLvl"
-    ]
-  },
-  "OverallQual": {
-    "feature_labels": [
-      "10",
-      "9",
-      "8",
-      "7",
-      "6",
-      "5",
-      "4",
-      "3",
-      "2",
-      "1"
-    ]
-  },
-  "OverallCond": {
-    "feature_labels": [
-      "10",
-      "9",
-      "8",
-      "7",
-      "6",
-      "5",
-      "4",
-      "3",
-      "2",
-      "1"
     ]
   },
   "RoofStyle": {
@@ -236,10 +208,10 @@
     "feature_labels": [
       "AsbShng",
       "AsphShn",
-      "BrkComm",
+      "Brk Cmn",
       "BrkFace",
       "CBlock",
-      "CemntBd",
+      "CmentBd",
       "HdBoard",
       "ImStucc",
       "MetalSd",
@@ -250,7 +222,7 @@
       "Stucco",
       "VinylSd",
       "Wd Sdng",
-      "WdShing"
+      "Wd Shng"
     ]
   },
   "MasVnrType": {
@@ -482,7 +454,7 @@
   },
   "SaleType": {
     "feature_labels": [
-      "WD ",
+      "WD",
       "CWD",
       "VWD",
       "New",

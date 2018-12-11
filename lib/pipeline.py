@@ -1,52 +1,23 @@
-from logging import warning, info, getLogger, INFO
+from logging import info, error, getLogger, INFO
 
-import pandas
 import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from sklearn.tree import DecisionTreeRegressor
 
-from lib.helpers import extract_labels_from_data_description
-from lib.io import save_json
-from lib.plot import plot_2d_simple
+from lib.ioutilites import save_json, read_json
 
 getLogger().setLevel(INFO)
 
 
-def extract_type(value):
-    return str(type(value))
-
-
 def load_data():
-    train_csv = pandas.read_csv("../dataset/train.csv")
-    test_csv = pandas.read_csv("../dataset/test.csv")
+    train_csv = pd.read_csv("../dataset/train.csv")
+    test_csv = pd.read_csv("../dataset/test.csv")
     train_x = train_csv.drop(["Id", "SalePrice"], axis=1)
     train_y = train_csv["SalePrice"]
     test_x = test_csv.drop(["Id"], axis=1)
     return train_x, train_y, test_x
-
-
-def extract_meta_info(csv):
-    meta = {}
-    keys = csv.keys()
-    info("Shape: {}".format(csv.shape))
-    for key in keys:
-        meta[key] = {}
-        value_set = set(csv[key])
-        type_set = set(map(extract_type, value_set))
-        meta[key]["type"] = list(type_set)
-
-        if len(type_set) > 1:
-            warning("'{}' column has different data type: {}".format(key, type_set))
-
-        if "<class 'str'>" in meta[key]["type"]:
-            meta[key]["value_set"] = list(value_set)
-        else:
-            meta[key]["stats"] = {
-                "mean": csv[key].mean(),
-                "max": float(csv[key].max()),
-                "min": float(csv[key].min())
-            }
-    return meta
 
 
 def data_norm(data, meta_info):
@@ -66,30 +37,6 @@ def data_norm(data, meta_info):
     return normalized_data
 
 
-def check_dataset_range(meta_info_train_x, meta_info_test_x):
-    for label in meta_info_train_x:
-        info(label)
-        if "<class 'str'>" in meta_info_train_x[label]["type"]:
-            diff = meta_info_test_x[label]["value_set"] - meta_info_train_x[label]["value_set"]
-            info(diff)
-            if len(diff) > 0:
-                warning(diff)
-        else:
-            test_stats = meta_info_test_x[label]["stats"]
-            train_stats = meta_info_train_x[label]["stats"]
-
-            info("   train\ttest")
-
-            train_min, test_min, train_max, test_max = train_stats["min"], test_stats["min"], train_stats["max"], \
-                                                       test_stats["max"]
-
-            info("min: {},\t{}".format(train_min, test_min))
-            info("max: {},\t{}".format(train_max, test_max))
-            if train_min != test_min or train_max != test_max:
-                warning("train_min = {}, train_max = {}".format(train_min, train_max))
-                warning("test_min = {}, test_max = {}".format(test_min, test_max))
-
-
 def isnan(value):
     return isinstance(value, float) and np.isnan(value)
 
@@ -101,12 +48,14 @@ def isnan_to(value, new_value):
         return value
 
 
-def fill_nans(train, converters):
-    for index, row in train.iterrows():
+def fill_nans(train: pd.DataFrame, converters) -> pd.DataFrame:
+    train_copy = train.copy()
+    for index, row in train_copy.iterrows():
         for feature in row.keys():
             if feature in converters:
                 new_value = converters[feature](row[feature], row)
-                train.at[index, feature] = new_value
+                train_copy.at[index, feature] = new_value
+    return train_copy
 
 
 def check_nans(data):
@@ -124,33 +73,20 @@ def get_or_key(grouped_data, key):
         return value
 
 
-def run_pipeline():
-
-    def fit(data, target):
-        regressor.fit(data.values, target.values)
-
-    def predict(test_data):
-        return regressor.predict(test_data)
-
-    train_x, train_y, test_x = load_data()
-
-    garage_year_built_dependency = train_x.groupby("YearBuilt")["GarageYrBlt"].mean()
-
-    # plot_two_features_correlation(train_x, "GarageYrBlt", "YearBuilt")
-
-    plot_2d_simple(garage_year_built_dependency.keys(), garage_year_built_dependency.values)
+def preprocess_data(submission: pd.DataFrame, data: pd.DataFrame):
+    # garage_year_built_dependency = data.groupby("YearBuilt")["GarageYrBlt"].mean()
 
     explicit_converters = {
         "LotFrontage": lambda value, row: isnan_to(value, 0.0),
         "MasVnrArea": lambda value, row: isnan_to(value, 0.0),
         "Alley": lambda value, row: isnan_to(value, "NA"),
         "MasVnrType": lambda value, row: isnan_to(value, "None"),
-        "BsmtQual": lambda value, row: isnan_to(value, "None"),
+        "BsmtQual": lambda value, row: isnan_to(value, "NA"),
         "BsmtCond": lambda value, row: isnan_to(value, "NA"),
         "BsmtExposure": lambda value, row: isnan_to(value, "NA"),
         "BsmtFinType1": lambda value, row: isnan_to(value, "NA"),
         "BsmtFinType2": lambda value, row: isnan_to(value, "NA"),
-        "Electrical": lambda value, row: isnan_to(value, "NA"),
+        "Electrical": lambda value, row: isnan_to(value, "SBrkr"),  # most frequent
         "FireplaceQu": lambda value, row: isnan_to(value, "NA"),
         "PoolQC": lambda value, row: isnan_to(value, "NA"),
         "Fence": lambda value, row: isnan_to(value, "NA"),
@@ -159,27 +95,88 @@ def run_pipeline():
         "GarageQual": lambda value, row: isnan_to(value, "NA"),
         "GarageFinish": lambda value, row: isnan_to(value, "NA"),
         "GarageType": lambda value, row: isnan_to(value, "NA"),
-        "GarageYrBlt": lambda value, row: get_or_key(garage_year_built_dependency, row["YearBuilt"])
+        "MSZoning": lambda value, row: isnan_to(value, "RL"),
+        "Utilities": lambda value, row: isnan_to(value, "AllPub"),
+        "Exterior1st": lambda value, row: isnan_to(value, "VinylSd"),
+        "Exterior2nd": lambda value, row: isnan_to(value, "VinylSd"),
+        "KitchenQual": lambda value, row: isnan_to(value, "TA"),
+        "Functional": lambda value, row: isnan_to(value, "Typ"),
+        "SaleType": lambda value, row: isnan_to(value, "WD"),
+        # "GarageYrBlt": lambda value, row: get_or_key(garage_year_built_dependency, row["YearBuilt"])
     }
 
-    fill_nans(train_x, explicit_converters)
-    fill_nans(test_x, explicit_converters)
+    preprocessed_data = fill_nans(data, explicit_converters)
+    preprocessed_submission = fill_nans(submission, explicit_converters)
+    return preprocessed_data.drop("GarageYrBlt", axis=1), preprocessed_submission.drop("GarageYrBlt", axis=1)
 
-    check_nans(train_x)
-    check_nans(test_x)
 
-    meta_info_train_x = extract_meta_info(train_x)
-    meta_info_test_x = extract_meta_info(test_x)
+def encode_labels(data: pd.DataFrame, labels_by_column) -> pd.DataFrame:
+    data_copy = data.copy()
+    for feature in labels_by_column:
+        feature_labels = labels_by_column[feature]["feature_labels"]
+        le = LabelEncoder()
+        le.fit(feature_labels)
+        labels_by_column[feature]["encoder"] = le
+        data_copy[feature] = le.transform(data[feature])
+    return data_copy
 
-    save_json('../dataset/meta/train_x_meta.json', meta_info_train_x)
-    save_json('../dataset/meta/test_x_meta.json', meta_info_test_x)
-    save_json("../dataset/meta/labels.json", extract_labels_from_data_description())
 
-    regressor = DecisionTreeRegressor(max_depth=16)
+def min_max(encoded):
+    return MinMaxScaler().fit_transform(encoded)
 
-    fit(train_x, train_y)
-    predicted = predict(test_x.values)
-    print(predicted)
+
+def root_mean_square_log_error(y_pred, y_test):
+    assert len(y_test) == len(y_pred)
+    return np.sqrt(np.mean((np.log(1 + y_pred) - np.log(1 + y_test)) ** 2))
+
+
+def run_pipeline():
+    data, target, submission = load_data()
+
+    # fill nans
+    preprocessed_data, preprocessed_submission = preprocess_data(submission, data)
+
+    # encode labels
+    labels_by_column = read_json("../dataset/meta/labels.json")
+    encoded_submission = encode_labels(preprocessed_submission, labels_by_column)
+    encoded_data = encode_labels(preprocessed_data, labels_by_column)
+
+    # scale data
+    scaled_submission = min_max(encoded_submission.values)
+    scaled_target = min_max(target.values.reshape(-1, 1))
+    scaled_data = min_max(encoded_data.values)
+
+    regressors = [
+        ('LinearRegression()', LinearRegression())
+    ]
+
+    results = {}
+
+    for description, regressor in regressors:
+        info("Started: {}".format(description))
+        results[description] = {
+            "rmsle": [],
+            "error": "no_error"
+        }
+
+        try:
+            rskf = KFold(n_splits=3)
+            for train_index, test_index in rskf.split(scaled_data, scaled_target):
+                train_data, test_data = scaled_data[train_index], scaled_data[test_index]
+                train_target, test_target = scaled_target[train_index], scaled_target[test_index]
+
+                regressor.fit(train_data, train_target)
+                predicted_target = regressor.predict(test_data)
+
+                rmsle = root_mean_square_log_error(y_pred=predicted_target, y_test=test_target)
+                results[description]["rmsle"].append(rmsle)
+
+        except Exception as e:
+            error_message = "Error occurred while executing {}: {}".format(description, e)
+            error(error_message)
+            results[description]["error"] = error_message
+
+    save_json("../dataset/results.json", results)
 
 
 if __name__ == '__main__':
