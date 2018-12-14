@@ -1,24 +1,26 @@
-from logging import info, error, getLogger, INFO
+import logging as log
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+
 from sklearn import metrics
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 from lib.ioutilites import save_json, read_json
+from lib.outliers import dbscan_outlier_finder
 
-getLogger().setLevel(INFO)
+log.getLogger().setLevel(log.INFO)
 
 
 def load_data():
     train_csv = pd.read_csv("../dataset/train.csv")
     test_csv = pd.read_csv("../dataset/test.csv")
-    train_x = train_csv.drop(["Id", "SalePrice"], axis=1)
-    train_y = train_csv["SalePrice"]
-    test_x = test_csv.drop(["Id"], axis=1)
-    return train_x, train_y, test_x
+    train = train_csv.drop(["Id"], axis=1)
+    submission = test_csv.drop(["Id"], axis=1)
+    return train, submission
 
 
 def isnan(value):
@@ -115,31 +117,49 @@ def root_mean_square_error(y_predicted, y_actual):
 
 
 def run_pipeline():
-    data, target, submission = load_data()
+    train, submission = load_data()
+
+    target = train["SalePrice"]
+    data = train.drop(["SalePrice"], axis=1)
 
     # fill nans
+    log.info("data preprocessing...")
     preprocessed_data, preprocessed_submission = preprocess_data(submission, data)
 
     # encode labels
+    log.info("encode labels...")
     labels_by_column = read_json("../dataset/meta/labels.json")
     encoded_submission = encode_labels(preprocessed_submission, labels_by_column)
     encoded_data = encode_labels(preprocessed_data, labels_by_column)
 
     # scale data
+    log.info("scale data...")
     scaled_submission = min_max(encoded_submission.values)
     target_log = np.log(target.values)
     scaled_target = min_max(target_log.reshape(-1, 1))
     scaled_data = min_max(encoded_data.values)
 
+    # remove outliers
+    outlier_indexes, data_indexes = dbscan_outlier_finder(train=scaled_data, eps=2.5, min_samples=10)
+    log.info(outlier_indexes, data_indexes)
+    year_series = train["YearBuilt"]
+    saleprice_series = train["SalePrice"]
+
+    plt.plot(year_series.values[outlier_indexes], saleprice_series.values[outlier_indexes], '.')
+    plt.plot(year_series.values[data_indexes], saleprice_series.values[data_indexes], '.')
+    plt.xlabel("YearBuilt")
+    plt.ylabel("SalePrice")
+    plt.show()
+
     regressors = [
-        ('LinearRegression()', LinearRegression())
+        LinearRegression()
     ]
 
     results = {}
 
-    for description, regressor in regressors:
-        description = "{}".format(regressor)
-        info("Started: {}".format(description))
+    for regressor in regressors:
+        description = str(regressor).replace('\n', '').replace(' ', '')
+        log.info("Started: {}".format(description))
         results[description] = {
             "rmse": [],
             "error": "no_error"
@@ -152,14 +172,14 @@ def run_pipeline():
                 train_target, test_target = scaled_target[train_index], scaled_target[test_index]
 
                 regressor.fit(train_data, train_target)
-                predicted_target = regressor.predict(X=test_data)
+                predicted_target = regressor.predict(test_data)
 
                 rmse = root_mean_square_error(y_predicted=predicted_target, y_actual=test_target)
                 results[description]["rmse"].append(rmse)
 
         except Exception as e:
             error_message = "Error occurred while executing {}: {}".format(description, e)
-            error(error_message)
+            log.error(error_message)
             results[description]["error"] = error_message
 
     save_json("../dataset/results.json", results)
