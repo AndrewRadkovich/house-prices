@@ -3,9 +3,12 @@ import logging as log
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+from sklearn.svm import SVR
 
 from lib.converters import SalePriceConverter
 from lib.ioutilites import read_json
@@ -148,13 +151,16 @@ def run_pipeline():
     log.info("run models...")
     results = []
     regressor_gens = [
-        ('LinearRegression(fit_intercept=False)', lambda: LinearRegression(fit_intercept=False))
+        ('LinearRegression(fit_intercept=False)', lambda: LinearRegression(fit_intercept=False)),
+        ('KNeighborsRegressor(n_neighbors=10)', lambda: KNeighborsRegressor(n_neighbors=10)),
+        ('RandomForestRegressor(n_estimators=250)', lambda: RandomForestRegressor(n_estimators=250)),
     ]
 
     for description, regressor_gen in regressor_gens:
         log.info("model: " + description)
         result = {
             "description": description,
+            "model_factory": regressor_gen,
             "launches": []
         }
         try:
@@ -185,15 +191,23 @@ def run_pipeline():
             result["error"] = error_message
         results.append(result)
 
-    # save_json("../dataset/results.json", results)
-
     for result in results:
         launches = result["launches"]
         scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), launches))), axis=0)
-        submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
-        log.info(submissions)
-        output_df = pd.DataFrame(data={"Id": range(1461, 2920), "SalePrice": submissions.reshape(1, -1)[0]})
-        output_df.to_csv("submission.csv", index=False)
+        kfold_average_submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
+        log.info(kfold_average_submissions)
+        save_submissions(result, kfold_average_submissions, "average")
+
+        regressor = result["model_factory"]()
+        regressor.fit(scaled_data, scaled_target)
+        full_set_submission = regressor.predict(scaled_submission)
+        save_submissions(result, sale_price_converter.inv_scale(full_set_submission), "fullset")
+
+
+def save_submissions(result, submissions, filename_postfix):
+    output_df = pd.DataFrame(data={"Id": range(1461, 2920), "SalePrice": submissions.reshape(1, -1)[0]})
+    filename = "submission-{}-{}.csv".format(result["description"], filename_postfix)
+    output_df.to_csv(filename, index=False)
 
 
 if __name__ == '__main__':
