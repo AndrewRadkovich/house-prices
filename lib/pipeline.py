@@ -2,15 +2,13 @@ import logging as log
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-
 from sklearn import metrics
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
-from lib.ioutilites import save_json, read_json
-from lib.outliers import dbscan_outlier_finder
+from lib.converters import SalePriceConverter
+from lib.ioutilites import read_json, save_json
 
 log.getLogger().setLevel(log.INFO)
 
@@ -44,24 +42,7 @@ def fill_nans(train: pd.DataFrame, converters) -> pd.DataFrame:
     return train_copy
 
 
-def check_nans(data):
-    for feature in data.keys():
-        has_nan = any([isnan(value) for value in data[feature]])
-        if has_nan:
-            print("{} has NaN".format(feature))
-
-
-def get_or_key(grouped_data, key):
-    value = grouped_data[key]
-    if isnan(value):
-        return key
-    else:
-        return value
-
-
-def preprocess_data(submission: pd.DataFrame, data: pd.DataFrame):
-    # garage_year_built_dependency = data.groupby("YearBuilt")["GarageYrBlt"].mean()
-
+def preprocess_data(data: pd.DataFrame):
     explicit_converters = {
         "LotFrontage": lambda value, row: isnan_to(value, 0.0),
         "MasVnrArea": lambda value, row: isnan_to(value, 0.0),
@@ -88,12 +69,10 @@ def preprocess_data(submission: pd.DataFrame, data: pd.DataFrame):
         "KitchenQual": lambda value, row: isnan_to(value, "TA"),
         "Functional": lambda value, row: isnan_to(value, "Typ"),
         "SaleType": lambda value, row: isnan_to(value, "WD"),
-        # "GarageYrBlt": lambda value, row: get_or_key(garage_year_built_dependency, row["YearBuilt"])
     }
 
     preprocessed_data = fill_nans(data, explicit_converters)
-    preprocessed_submission = fill_nans(submission, explicit_converters)
-    return preprocessed_data.drop("GarageYrBlt", axis=1), preprocessed_submission.drop("GarageYrBlt", axis=1)
+    return preprocessed_data.drop("GarageYrBlt", axis=1)
 
 
 def encode_labels(data: pd.DataFrame, labels_by_column) -> pd.DataFrame:
@@ -116,6 +95,10 @@ def root_mean_square_error(y_predicted, y_actual):
     return np.sqrt(metrics.mean_squared_error(y_actual, y_predicted))
 
 
+def predict(scaled_submission):
+    return lambda r: r["model"].predict(scaled_submission)
+
+
 def run_pipeline():
     train, submission = load_data()
 
@@ -124,7 +107,7 @@ def run_pipeline():
 
     # fill nans
     log.info("data preprocessing...")
-    preprocessed_data, preprocessed_submission = preprocess_data(submission, data)
+    preprocessed_data, preprocessed_submission = preprocess_data(data), preprocess_data(submission)
 
     # encode labels
     log.info("encode labels...")
@@ -134,55 +117,61 @@ def run_pipeline():
 
     # scale data
     log.info("scale data...")
-    scaled_submission = min_max(encoded_submission.values)
-    target_log = np.log(target.values)
-    scaled_target = min_max(target_log.reshape(-1, 1))
-    scaled_data = min_max(encoded_data.values)
+    min_max_scaler = MinMaxScaler()
+    min_max_scaler.fit(np.concatenate((encoded_data.values, encoded_submission.values), axis=0))
+    scaled_data = min_max_scaler.transform(encoded_data.values)
+    scaled_submission = min_max_scaler.transform(encoded_submission.values)
 
-    # remove outliers
-    outlier_indexes, data_indexes = dbscan_outlier_finder(train=scaled_data, eps=2.5, min_samples=10)
-    log.info(outlier_indexes, data_indexes)
-    year_series = train["YearBuilt"]
-    saleprice_series = train["SalePrice"]
+    sale_price_converter = SalePriceConverter()
+    scaled_target = sale_price_converter.scale(target.values.reshape(-1, 1))
 
-    plt.plot(year_series.values[outlier_indexes], saleprice_series.values[outlier_indexes], '.')
-    plt.plot(year_series.values[data_indexes], saleprice_series.values[data_indexes], '.')
-    plt.xlabel("YearBuilt")
-    plt.ylabel("SalePrice")
-    plt.show()
-
-    regressors = [
-        LinearRegression()
+    # run models
+    log.info("run models...")
+    results = []
+    regressor_gens = [
+        ('LinearRegression(fit_intercept=False)', lambda: LinearRegression(fit_intercept=False)),
+        ('LinearRegression(fit_intercept=True)', lambda: LinearRegression(fit_intercept=True)),
     ]
 
-    results = {}
-
-    for regressor in regressors:
-        description = str(regressor).replace('\n', '').replace(' ', '')
-        log.info("Started: {}".format(description))
-        results[description] = {
-            "rmse": [],
-            "error": "no_error"
+    for description, regressor_gen in regressor_gens:
+        log.info("model: " + description)
+        result = {
+            "description": description,
+            "laucnhes": []
         }
-
         try:
             train_test_splitter = KFold(n_splits=5)
             for train_index, test_index in train_test_splitter.split(scaled_data, scaled_target):
                 train_data, test_data = scaled_data[train_index], scaled_data[test_index]
                 train_target, test_target = scaled_target[train_index], scaled_target[test_index]
 
+                regressor = regressor_gen()
                 regressor.fit(train_data, train_target)
                 predicted_target = regressor.predict(test_data)
 
                 rmse = root_mean_square_error(y_predicted=predicted_target, y_actual=test_target)
-                results[description]["rmse"].append(rmse)
 
+                log.info("rmse:\t\t{}".format(rmse))
+
+                result["laucnhes"].append({
+                    "rmse": rmse,
+                    "model": regressor,
+                    "data_indexes": {
+                        "train_index": train_index.tolist(),
+                        "test_index": test_index.tolist()
+                    }
+                })
         except Exception as e:
             error_message = "Error occurred while executing {}: {}".format(description, e)
             log.error(error_message)
-            results[description]["error"] = error_message
+            result["error"] = error_message
+        results.append(result)
 
-    save_json("../dataset/results.json", results)
+    # save_json("../dataset/results.json", results)
+
+    scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), results))), axis=0)
+    submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
+    log.info(submissions)
 
 
 if __name__ == '__main__':

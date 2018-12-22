@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 
 from lib.plot import plot_3d_simple, plot_2d_simple, plot_two_features_correlation
 
@@ -75,8 +76,10 @@ if __name__ == '__main__':
     train = pd.read_csv("../dataset/train.csv")
     x_feature = "YearBuilt"
     y_feature = "SalePrice"
-    # plt.plot(train[x_feature].values, np.log(1 + train[y_feature].values), ".")
-    plt.plot(train[x_feature].values, train[y_feature].values, ".")
+    scaled_target = MinMaxScaler().fit_transform(train[y_feature].values.reshape(-1, 1))
+    scaled_target_log = np.log(1 + scaled_target.reshape(1, -1)[0])
+    plt.plot(train[x_feature].values, scaled_target, ".")
+    # plt.plot(train[x_feature].values, scaled_target_log, ".")
     plt.xlabel(x_feature)
     plt.ylabel(y_feature)
     plt.show()
