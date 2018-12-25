@@ -8,7 +8,6 @@ from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from sklearn.svm import SVR
 
 from lib.converters import SalePriceConverter
 from lib.ioutilites import read_json
@@ -19,9 +18,8 @@ log.getLogger().setLevel(log.INFO)
 def load_data():
     train_csv = pd.read_csv("../dataset/train.csv")
     test_csv = pd.read_csv("../dataset/test.csv")
-    train = train_csv.drop(["Id"], axis=1)
     submission = test_csv.drop(["Id"], axis=1)
-    return train, submission
+    return train_csv, submission
 
 
 def isnan(value):
@@ -121,8 +119,13 @@ def assert_has_no_nan(array: np.array):
 def run_pipeline():
     train, submission = load_data()
 
+    # remove outliers
+    train.sort_values(by='GrLivArea', ascending=False)[:2]
+    train = train.drop(train[train['Id'] == 1299].index)
+    train = train.drop(train[train['Id'] == 524].index)
+
     target = train["SalePrice"]
-    data = train.drop(["SalePrice"], axis=1)
+    data = train.drop(["SalePrice", "Id"], axis=1)
 
     # fill nans
     log.info("data preprocessing...")
@@ -145,14 +148,12 @@ def run_pipeline():
     assert_has_no_nan(scaled_submission)
 
     sale_price_converter = SalePriceConverter()
-    scaled_target = sale_price_converter.scale(target.values.reshape(-1, 1))
+    scaled_target = sale_price_converter.scale(target.values.reshape(-1, 1)).reshape(1, -1)[0]
 
     # run models
     log.info("run models...")
     results = []
     regressor_gens = [
-        ('LinearRegression(fit_intercept=False)', lambda: LinearRegression(fit_intercept=False)),
-        ('KNeighborsRegressor(n_neighbors=10)', lambda: KNeighborsRegressor(n_neighbors=10)),
         ('RandomForestRegressor(n_estimators=250)', lambda: RandomForestRegressor(n_estimators=250)),
     ]
 
@@ -164,7 +165,7 @@ def run_pipeline():
             "launches": []
         }
         try:
-            train_test_splitter = KFold(n_splits=5)
+            train_test_splitter = KFold(n_splits=10)
             for train_index, test_index in train_test_splitter.split(scaled_data, scaled_target):
                 train_data, test_data = scaled_data[train_index], scaled_data[test_index]
                 train_target, test_target = scaled_target[train_index], scaled_target[test_index]
@@ -196,17 +197,17 @@ def run_pipeline():
         scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), launches))), axis=0)
         kfold_average_submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
         log.info(kfold_average_submissions)
-        save_submissions(result, kfold_average_submissions, "average")
+        save_submissions(kfold_average_submissions, "average")
 
         regressor = result["model_factory"]()
         regressor.fit(scaled_data, scaled_target)
         full_set_submission = regressor.predict(scaled_submission)
-        save_submissions(result, sale_price_converter.inv_scale(full_set_submission), "fullset")
+        save_submissions(sale_price_converter.inv_scale(full_set_submission), "fullset")
 
 
-def save_submissions(result, submissions, filename_postfix):
+def save_submissions(submissions, filename_postfix):
     output_df = pd.DataFrame(data={"Id": range(1461, 2920), "SalePrice": submissions.reshape(1, -1)[0]})
-    filename = "submission-{}-{}.csv".format(result["description"], filename_postfix)
+    filename = "submission{}.csv".format(filename_postfix)
     output_df.to_csv(filename, index=False)
 
 
