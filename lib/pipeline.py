@@ -4,9 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn import metrics
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
-from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 from lib.converters import SalePriceConverter
@@ -116,13 +114,11 @@ def assert_has_no_nan(array: np.array):
     assert not np.isnan(array).any()
 
 
-def run_pipeline():
+def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=None):
     train, submission = load_data()
 
     # remove outliers
-    train.sort_values(by='GrLivArea', ascending=False)[:2]
-    train = train.drop(train[train['Id'] == 1299].index)
-    train = train.drop(train[train['Id'] == 524].index)
+    train = remove_outliers_op(train)
 
     target = train["SalePrice"]
     data = train.drop(["SalePrice", "Id"], axis=1)
@@ -153,56 +149,59 @@ def run_pipeline():
     # run models
     log.info("run models...")
     results = []
-    regressor_gens = [
-        ('RandomForestRegressor(n_estimators=250)', lambda: RandomForestRegressor(n_estimators=250)),
-    ]
 
-    for description, regressor_gen in regressor_gens:
-        log.info("model: " + description)
-        result = {
-            "description": description,
-            "model_factory": regressor_gen,
-            "launches": []
-        }
-        try:
-            train_test_splitter = KFold(n_splits=10)
-            for train_index, test_index in train_test_splitter.split(scaled_data, scaled_target):
-                train_data, test_data = scaled_data[train_index], scaled_data[test_index]
-                train_target, test_target = scaled_target[train_index], scaled_target[test_index]
+    description = str(estimator_factory())
+    log.info("model: " + description)
+    result = {
+        "description": description,
+        "model_factory": estimator_factory,
+        "launches": []
+    }
+    try:
+        for train_index, test_index in cv.split(scaled_data, scaled_target):
+            train_data, test_data = scaled_data[train_index], scaled_data[test_index]
+            train_target, test_target = scaled_target[train_index], scaled_target[test_index]
 
-                regressor = regressor_gen()
-                regressor.fit(train_data, train_target)
-                predicted_target = regressor.predict(test_data)
+            estimator = estimator_factory()
+            estimator.fit(train_data, train_target)
+            predicted_target = estimator.predict(test_data)
 
-                rmse = root_mean_square_error(y_predicted=predicted_target, y_actual=test_target)
+            rmse = root_mean_square_error(y_predicted=predicted_target, y_actual=test_target)
 
-                log.info("rmse:\t\t{}".format(rmse))
+            log.info("rmse:\t\t{}".format(rmse))
 
-                result["launches"].append({
-                    "rmse": rmse,
-                    "model": regressor,
-                    "data_indexes": {
-                        "train_index": train_index,
-                        "test_index": test_index
-                    }
-                })
-        except Exception as e:
-            error_message = "Error occurred while executing {}: {}".format(description, e)
-            log.error(error_message)
-            result["error"] = error_message
-        results.append(result)
+            result["launches"].append({
+                "rmse": rmse,
+                "model": estimator,
+                "data_indexes": {
+                    "train_index": train_index,
+                    "test_index": test_index
+                }
+            })
+    except Exception as e:
+        error_message = "Error occurred while executing {}: {}".format(description, e)
+        log.error(error_message)
+        result["error"] = error_message
+    results.append(result)
 
     for result in results:
         launches = result["launches"]
         scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), launches))), axis=0)
         kfold_average_submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
         log.info(kfold_average_submissions)
-        save_submissions(kfold_average_submissions, "average")
+        save_submissions(kfold_average_submissions, "-average")
 
-        regressor = result["model_factory"]()
-        regressor.fit(scaled_data, scaled_target)
-        full_set_submission = regressor.predict(scaled_submission)
-        save_submissions(sale_price_converter.inv_scale(full_set_submission), "fullset")
+        estimator = estimator_factory()
+        estimator.fit(scaled_data, scaled_target)
+        full_set_submission = estimator.predict(scaled_submission)
+        save_submissions(sale_price_converter.inv_scale(full_set_submission), "-fullset")
+
+
+def remove_grlivarea_top2_right(train):
+    train.sort_values(by='GrLivArea', ascending=False)[:2]
+    train = train.drop(train[train['Id'] == 1299].index)
+    train = train.drop(train[train['Id'] == 524].index)
+    return train
 
 
 def save_submissions(submissions, filename_postfix):
@@ -212,4 +211,6 @@ def save_submissions(submissions, filename_postfix):
 
 
 if __name__ == '__main__':
-    run_pipeline()
+    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
+                 cv=KFold(n_splits=10),
+                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250))
