@@ -213,4 +213,4 @@ def save_submissions(submissions, filename_postfix):
 if __name__ == '__main__':
     run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
                  cv=KFold(n_splits=10),
-                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250))
+                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250, random_state=42))
