@@ -3,9 +3,10 @@ import logging as log
 import numpy as np
 import pandas as pd
 from sklearn import metrics
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+from sklearn.tree import DecisionTreeRegressor
 
 from houseprices.preprocessing import SalePriceConverter
 from houseprices.ioutilites import read_json
@@ -214,3 +215,11 @@ if __name__ == '__main__':
                  cv=KFold(n_splits=10),
                  estimator_factory=lambda: RandomForestRegressor(n_estimators=250,
                                                                  random_state=42))
+    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
+                 cv=KFold(n_splits=10),
+                 estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=150,
+                                                             random_state=42))
+    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
+                 cv=KFold(n_splits=10),
+                 estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=250,
+                                                             random_state=42))
