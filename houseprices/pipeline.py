@@ -17,8 +17,7 @@ log.getLogger().setLevel(log.INFO)
 def load_data():
     train_csv = pd.read_csv("../dataset/train.csv")
     test_csv = pd.read_csv("../dataset/test.csv")
-    submission = test_csv.drop(["Id"], axis=1)
-    return train_csv, submission
+    return train_csv, test_csv
 
 
 def isnan(value):
@@ -73,7 +72,7 @@ def preprocess_data(data: pd.DataFrame):
         "GarageFinish": constant("NA"),
         "GarageType": constant("NA"),
         "GarageCars": constant(0),
-        "GarageArea": constant(0),
+        # "GarageArea": constant(0),
         "MSZoning": constant("RL"),
         "Utilities": constant("AllPub"),
         "Exterior1st": constant("VinylSd"),
@@ -117,12 +116,18 @@ def assert_has_no_nan(array: np.array):
 
 def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=None):
     train, submission = load_data()
+    log.info("train data shape: {}".format(train.shape))
+    log.info("submission shape: {}".format(submission.shape))
 
     # remove outliers
-    train = remove_outliers_op(train)
+    log.info("remove outliers...")
 
+    train = remove_outliers_op(train)
     target = train["SalePrice"]
-    data = train.drop(["SalePrice", "Id"], axis=1)
+    data = train.drop(["SalePrice", "Id", "GarageArea"], axis=1)
+    submission = submission.drop(["Id", "GarageArea"], axis=1)
+    log.info("train data shape: {}".format(data.shape))
+    log.info("submission shape: {}".format(submission.shape))
 
     # fill nans
     log.info("data preprocessing...")
@@ -179,6 +184,8 @@ def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=Non
                     "test_index": test_index
                 }
             })
+        rmse_list = np.array(list(map(lambda r: r["rmse"], result["launches"])))
+        log.info("mean rmse: {}±{}".format(rmse_list.mean(), rmse_list.std()))
     except Exception as e:
         error_message = "Error occurred while executing {}: {}".format(description, e)
         log.error(error_message)
@@ -198,9 +205,12 @@ def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=Non
 
 
 def remove_grlivarea_top2_right(train):
-    train.sort_values(by='GrLivArea', ascending=False)[:2]
-    train = train.drop(train[train['Id'] == 1299].index)
-    train = train.drop(train[train['Id'] == 524].index)
+    # train.sort_values(by='GrLivArea', ascending=False)[:2]
+    # train = train.drop(train[train['Id'] == 1299].index)
+    # train = train.drop(train[train['Id'] == 524].index)
+    train = train.drop(train[(train["GrLivArea"] > 4500) & (train["SalePrice"] < 300000)].index)
+    # train = train.drop(train[train["TotalBsmtSF"] > 3000].index)
+    # train = train.drop(train[train["SalePrice"] > 700000].index)
     return train
 
 
@@ -212,14 +222,18 @@ def save_submissions(submissions, filename_postfix):
 
 if __name__ == '__main__':
     run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
-                 cv=KFold(n_splits=10),
-                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250,
-                                                                 random_state=42))
+                 cv=KFold(n_splits=5),
+                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250, random_state=42))
+
     run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
-                 cv=KFold(n_splits=10),
-                 estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=150,
-                                                             random_state=42))
+                 cv=KFold(n_splits=5),
+                 estimator_factory=lambda: RandomForestRegressor(n_estimators=150, random_state=42))
+
     run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
-                 cv=KFold(n_splits=10),
+                 cv=KFold(n_splits=5),
+                 estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=150, random_state=42))
+
+    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
+                 cv=KFold(n_splits=5),
                  estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=250,
                                                              random_state=42))
