@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
-from lib.plot import plot_3d_simple, plot_2d_simple, plot_two_features_correlation
+from houseprices.plot import plot_3d_simple, plot_2d_simple, plot_two_features_correlation
 
 
 def fill_nans(data: pd.DataFrame, converters):

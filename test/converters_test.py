@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from lib.converters import SalePriceConverter
+from houseprices.preprocessing import SalePriceConverter
 
 
 class SalePriceConverterTest(unittest.TestCase):

@@ -7,8 +7,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
-from lib.converters import SalePriceConverter
-from lib.ioutilites import read_json
+from houseprices.preprocessing import SalePriceConverter
+from houseprices.ioutilites import read_json
 
 log.getLogger().setLevel(log.INFO)
 
@@ -188,7 +188,6 @@ def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=Non
         launches = result["launches"]
         scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), launches))), axis=0)
         kfold_average_submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
-        log.info(kfold_average_submissions)
         save_submissions(kfold_average_submissions, "-average")
 
         estimator = estimator_factory()
@@ -213,4 +212,5 @@ def save_submissions(submissions, filename_postfix):
 if __name__ == '__main__':
     run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
                  cv=KFold(n_splits=10),
-                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250, random_state=42))
+                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250,
+                                                                 random_state=42))
