@@ -3,13 +3,12 @@ import logging as log
 import numpy as np
 import pandas as pd
 from sklearn import metrics
-from sklearn.ensemble import RandomForestRegressor, AdaBoostRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
-from sklearn.tree import DecisionTreeRegressor
 
-from houseprices.preprocessing import SalePriceConverter
 from houseprices.ioutilites import read_json
+from houseprices.preprocessing import SalePriceConverter
 
 log.getLogger().setLevel(log.INFO)
 
@@ -123,21 +122,30 @@ def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=Non
     log.info("remove outliers...")
 
     train = remove_outliers_op(train)
+
+    train = train[train["OverallQual"] < 5]
+    submission = submission[submission["OverallQual"] < 5]
+
     target = train["SalePrice"]
     data = train.drop(["SalePrice", "Id", "GarageArea"], axis=1)
     submission = submission.drop(["Id", "GarageArea"], axis=1)
+
     log.info("train data shape: {}".format(data.shape))
     log.info("submission shape: {}".format(submission.shape))
 
     # fill nans
     log.info("data preprocessing...")
     preprocessed_data, preprocessed_submission = preprocess_data(data), preprocess_data(submission)
+    log.info("train data shape: {}".format(preprocessed_data.shape))
+    log.info("submission shape: {}".format(preprocessed_submission.shape))
 
     # encode labels
     log.info("encode labels...")
     labels_by_column = read_json("../dataset/meta/labels.json")
     encoded_submission = encode_labels(preprocessed_submission, labels_by_column)
     encoded_data = encode_labels(preprocessed_data, labels_by_column)
+    log.info("train data shape: {}".format(encoded_data.shape))
+    log.info("submission shape: {}".format(encoded_submission.shape))
 
     # scale data
     log.info("scale data...")
@@ -186,28 +194,37 @@ def run_pipeline(remove_outliers_op, cv=KFold(n_splits=5), estimator_factory=Non
             })
         rmse_list = np.array(list(map(lambda r: r["rmse"], result["launches"])))
         log.info("mean rmse: {}±{}".format(rmse_list.mean(), rmse_list.std()))
+        results.append(result)
+
+        make_fold_average_prediction(results, sale_price_converter, scaled_submission)
+        make_fullset_prediction(estimator_factory, sale_price_converter, scaled_data, scaled_submission, scaled_target)
     except Exception as e:
         error_message = "Error occurred while executing {}: {}".format(description, e)
         log.error(error_message)
         result["error"] = error_message
-    results.append(result)
 
+
+def make_fullset_prediction(estimator_factory, sale_price_converter, scaled_data, scaled_submission, scaled_target):
+    estimator = estimator_factory()
+    estimator.fit(scaled_data, scaled_target)
+    fullset_predicted = estimator.predict(scaled_data)
+    fullset_rmse = root_mean_square_error(y_predicted=fullset_predicted, y_actual=scaled_target)
+    log.info("fullset rmse: {}".format(fullset_rmse))
+    log.info("fullset score: {}".format(estimator.score(scaled_data, scaled_target)))
+    full_set_submission = estimator.predict(scaled_submission)
+    # save_submissions(sale_price_converter.inv_scale(full_set_submission), "-fullset")
+
+
+def make_fold_average_prediction(results, sale_price_converter, scaled_submission):
     for result in results:
         launches = result["launches"]
-        scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), launches))), axis=0)
+        scaled_submission_predicted_mean = np.mean(np.array(list(map(predict(scaled_submission), launches))),
+                                                   axis=0)
         kfold_average_submissions = sale_price_converter.inv_scale(scaled_submission_predicted_mean)
-        save_submissions(kfold_average_submissions, "-average")
-
-        estimator = estimator_factory()
-        estimator.fit(scaled_data, scaled_target)
-        full_set_submission = estimator.predict(scaled_submission)
-        save_submissions(sale_price_converter.inv_scale(full_set_submission), "-fullset")
+        # save_submissions(kfold_average_submissions, "-average")
 
 
 def remove_grlivarea_top2_right(train):
-    # train.sort_values(by='GrLivArea', ascending=False)[:2]
-    # train = train.drop(train[train['Id'] == 1299].index)
-    # train = train.drop(train[train['Id'] == 524].index)
     train = train.drop(train[(train["GrLivArea"] > 4500) & (train["SalePrice"] < 300000)].index)
     # train = train.drop(train[train["TotalBsmtSF"] > 3000].index)
     # train = train.drop(train[train["SalePrice"] > 700000].index)
@@ -221,19 +238,17 @@ def save_submissions(submissions, filename_postfix):
 
 
 if __name__ == '__main__':
-    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
-                 cv=KFold(n_splits=5),
-                 estimator_factory=lambda: RandomForestRegressor(n_estimators=250, random_state=42))
+    # run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
+    #              cv=KFold(n_splits=5),
+    #              estimator_factory=lambda: RandomForestRegressor(bootstrap=True, criterion='mse', max_depth=None,
+    #                                                              max_features='auto', max_leaf_nodes=None,
+    #                                                              min_impurity_decrease=0.0, min_impurity_split=None,
+    #                                                              min_samples_leaf=1, min_samples_split=2,
+    #                                                              min_weight_fraction_leaf=0.0, n_estimators=500,
+    #                                                              n_jobs=16,
+    #                                                              oob_score=False, random_state=None, verbose=0,
+    #                                                              warm_start=False))
 
     run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
                  cv=KFold(n_splits=5),
-                 estimator_factory=lambda: RandomForestRegressor(n_estimators=150, random_state=42))
-
-    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
-                 cv=KFold(n_splits=5),
-                 estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=150, random_state=42))
-
-    run_pipeline(remove_outliers_op=remove_grlivarea_top2_right,
-                 cv=KFold(n_splits=5),
-                 estimator_factory=lambda: AdaBoostRegressor(DecisionTreeRegressor(), n_estimators=250,
-                                                             random_state=42))
+                 estimator_factory=lambda: LinearRegression(fit_intercept=False))
