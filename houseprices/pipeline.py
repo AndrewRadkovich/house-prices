@@ -2,10 +2,11 @@ import logging as log
 
 import numpy as np
 import pandas as pd
-from sklearn import metrics, clone
-from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import KFold
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler
+from sklearn import metrics
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.model_selection import KFold, cross_val_score
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
 
 from houseprices.ioutilites import read_json
 from houseprices.preprocessing import SalePriceConverter
@@ -16,8 +17,8 @@ log.getLogger().setLevel(log.INFO)
 def load_data():
     train_csv = pd.read_csv("../dataset/train.csv")
     test_csv = pd.read_csv("../dataset/test.csv")
-    log.info("initial train data shape: {}".format(train_csv.shape))
-    log.info("initial submission shape: {}".format(test_csv.shape))
+    print("initial train data shape: {}".format(train_csv.shape))
+    print("initial submission shape: {}".format(test_csv.shape))
     return train_csv, test_csv
 
 
@@ -55,83 +56,18 @@ def assert_has_no_nan(array: np.array):
     assert not np.isnan(array).any()
 
 
-def save_submissions(filename, submissions: pd.DataFrame):
-    submissions.to_csv(filename, index=False)
-
-
 class HousePricesModel:
     def __init__(self, estimator, labels_by_column, cv=KFold(n_splits=5)):
         self.estimator = estimator
         self.labels_by_column = labels_by_column
-        self.train_data_scaler = MinMaxScaler()
+        self.train_data_scaler = StandardScaler()
         self.sale_price_converter = SalePriceConverter()
         self.features_to_remove = ["GarageArea", "GarageYrBlt"]
         self.scaled_test_data = None
         self.scaled_target = None
+        self.score = -1
         self.cv = cv
-
-    def fit(self, data):
-        self.prepare_train_data(data)
-
-        self.run_cross_validation()
-
-        self.estimator.fit(self.scaled_test_data, self.scaled_target)
-
-    def predict(self, test_data):
-        test_data_ids = test_data["Id"]
-        test_data_rows = test_data.drop(["Id"], axis=1)
-
-        cleaned_from_feature_test_data = self.remove_features(test_data_rows)
-
-        preprocessed_test_data = self.preprocess_data(cleaned_from_feature_test_data)
-        encoded_test_data = self.encode(preprocessed_test_data)
-        scaled_test_data = self.scale_test_data(encoded_test_data)
-
-        sale_price_scaled_predictions = self.estimator.predict(scaled_test_data)
-
-        sale_price_predictions = self.invert_scale(sale_price_scaled_predictions)
-
-        return pd.DataFrame({"Id": test_data_ids, "SalePrice": sale_price_predictions})
-
-    def run_cross_validation(self):
-        result = {
-            "description": str(clone(self.estimator)),
-            "launches": []
-        }
-        for train_index, test_index in self.cv.split(self.scaled_test_data, self.scaled_target):
-            train_data, test_data = self.scaled_test_data[train_index], self.scaled_test_data[test_index]
-            train_target, test_target = self.scaled_target[train_index], self.scaled_target[test_index]
-
-            estimator = clone(self.estimator)
-            estimator.fit(train_data, train_target)
-            predicted_target = estimator.predict(test_data)
-
-            rmse = root_mean_square_error(y_predicted=predicted_target, y_actual=test_target)
-            log.info("rmse:\t\t{}".format(rmse))
-            result["launches"].append({
-                "rmse": rmse,
-                "estimator": estimator
-            })
-        rmse_list = np.array(list(map(lambda r: r["rmse"], result["launches"])))
-        log.info("mean rmse: {}±{}".format(rmse_list.mean(), rmse_list.std()))
-
-    def prepare_train_data(self, data):
-        train = self.remove_outliers(data)
-        cleaned_from_features_train = self.remove_features(train)
-        train_data, train_target = self.split_train_target(cleaned_from_features_train)
-        preprocessed_train_data = self.preprocess_data(train_data)
-        encoded_train_data = self.encode(preprocessed_train_data)
-        self.scaled_test_data = self.scale_train_data(encoded_train_data)
-        self.scaled_target = self.scale_target(train_target)
-        assert_has_no_nan(self.scaled_test_data)
-
-    def split_train_target(self, train):
-        train_target = train["SalePrice"]
-        train_data = train.drop(["SalePrice", "Id"], axis=1)
-        return train_data, train_target
-
-    def preprocess_data(self, data: pd.DataFrame):
-        explicit_converters = {
+        self.explicit_converters = {
             "LotFrontage": constant(0.0),
             "MasVnrArea": constant(0.0),
             "Alley": constant("NA"),
@@ -167,7 +103,65 @@ class HousePricesModel:
             "SaleType": constant("WD")
         }
 
-        return fill_nans(data, explicit_converters)
+    def fit(self, data):
+        self.prepare_train_data(data)
+
+        self.run_cross_validation()
+
+        self.fit_full_train()
+
+    def fit_full_train(self):
+        self.estimator.fit(self.scaled_test_data, self.scaled_target)
+        full_train_score = root_mean_square_error(self.estimator.predict(self.scaled_test_data), self.scaled_target)
+        self.score = full_train_score
+        print("full train score: {}".format(full_train_score))
+
+    def predict(self, test_data):
+        test_data_ids = test_data["Id"]
+        test_data_rows = test_data.drop(["Id"], axis=1)
+
+        cleaned_from_feature_test_data = self.remove_features(test_data_rows)
+
+        preprocessed_test_data = self.preprocess_data(cleaned_from_feature_test_data)
+        encoded_test_data = self.encode(preprocessed_test_data)
+        scaled_test_data = self.scale_test_data(encoded_test_data)
+
+        sale_price_scaled_predictions = self.estimator.predict(scaled_test_data)
+
+        sale_price_predictions = self.invert_scale(sale_price_scaled_predictions)
+
+        return pd.DataFrame({"Id": test_data_ids, "SalePrice": sale_price_predictions})
+
+    def run_cross_validation(self):
+        score = np.sqrt(-cross_val_score(estimator=self.estimator,
+                                         X=self.scaled_test_data,
+                                         y=self.scaled_target,
+                                         scoring="neg_mean_squared_error",
+                                         cv=self.cv.get_n_splits(self.scaled_test_data)))
+        print("        cv score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+
+    def prepare_train_data(self, data):
+        train_data = self.remove_outliers(data)
+        cleaned_from_features_train = self.remove_features(train_data)
+        train_data, train_target = self.split_train_target(cleaned_from_features_train)
+        preprocessed_train_data = self.preprocess_data(train_data)
+        encoded_train_data = self.encode(preprocessed_train_data)
+        self.scaled_test_data = self.scale_train_data(encoded_train_data)
+        self.scaled_target = self.scale_target(train_target)
+        print("data shape: {}".format(self.scaled_test_data.shape))
+        assert_has_no_nan(self.scaled_test_data)
+
+    @staticmethod
+    def split_train_target(train):
+        train_target = train["SalePrice"]
+        train_data = train.drop(["SalePrice", "Id"], axis=1)
+        return train_data, train_target
+
+    def preprocess_data(self, data: pd.DataFrame):
+        filled_data = fill_nans(data, self.explicit_converters)
+        filled_data['TotalSF'] = filled_data['TotalBsmtSF'] + filled_data['1stFlrSF'] + filled_data['2ndFlrSF']
+        filled_data["YrMoSold"] = filled_data["YrSold"] + filled_data["MoSold"] / 12
+        return filled_data
 
     def encode_labels(self, data: pd.DataFrame) -> pd.DataFrame:
         data_copy = data.copy()
@@ -197,20 +191,31 @@ class HousePricesModel:
     def scale_target(self, values):
         return self.sale_price_converter.scale(values.values.reshape(-1, 1)).reshape(1, -1)[0]
 
-    def remove_outliers(self, data):
+    @staticmethod
+    def remove_outliers(data):
         return data.drop(data[(data["GrLivArea"] > 4500) & (data["SalePrice"] < 300000)].index)
 
     def remove_features(self, data: pd.DataFrame):
         return data.drop(self.features_to_remove, axis=1)
 
 
+def save(filename, submissions: pd.DataFrame):
+    submissions.to_csv("../predictions/" + filename, index=False)
+
+
 if __name__ == '__main__':
-    train, test = load_data()
     labels_by_column = read_json("../dataset/meta/labels.json")
 
-    model = HousePricesModel(estimator=LinearRegression(fit_intercept=False),
-                             labels_by_column=labels_by_column)
 
-    model.fit(train)
-    submission = model.predict(test)
-    save_submissions("submission.cvs", submission)
+    def run(description, estimator):
+        print("\n", str(estimator))
+        model = HousePricesModel(estimator=estimator, labels_by_column=labels_by_column)
+        model.fit(train)
+        save(str(model.score) + "-" + description + ".csv", model.predict(test))
+
+
+    train, test = load_data()
+
+    # save_submissions("KNeighborsRegressor(n_neighbors=5).csv", run(KNeighborsRegressor(n_neighbors=5)))
+    # run("RandomForest(n_estimators=3000)", RandomForestRegressor(n_estimators=300))
+    run("GradientBoosting(n_estimators=3000)", GradientBoostingRegressor(n_estimators=3000))
