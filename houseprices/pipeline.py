@@ -3,10 +3,9 @@ import logging as log
 import numpy as np
 import pandas as pd
 from sklearn import metrics
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import KFold, cross_val_score
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from houseprices.ioutilites import read_json
 from houseprices.preprocessing import SalePriceConverter
@@ -37,8 +36,8 @@ def isnan_to(value, new_value):
         return value
 
 
-def fill_nans(train: pd.DataFrame, converters) -> pd.DataFrame:
-    train_copy = train.copy()
+def fill_nans(data: pd.DataFrame, converters) -> pd.DataFrame:
+    train_copy = data.copy()
     for index, row in train_copy.iterrows():
         for feature in row.keys():
             if feature in converters:
@@ -57,9 +56,9 @@ def assert_has_no_nan(array: np.array):
 
 
 class HousePricesModel:
-    def __init__(self, estimator, labels_by_column, cv=KFold(n_splits=5)):
+    def __init__(self, estimator, feature_labels, cv=KFold(n_splits=5)):
         self.estimator = estimator
-        self.labels_by_column = labels_by_column
+        self.labels_by_column = feature_labels
         self.train_data_scaler = StandardScaler()
         self.sale_price_converter = SalePriceConverter()
         self.features_to_remove = ["GarageArea", "GarageYrBlt"]
@@ -152,15 +151,17 @@ class HousePricesModel:
         assert_has_no_nan(self.scaled_test_data)
 
     @staticmethod
-    def split_train_target(train):
-        train_target = train["SalePrice"]
-        train_data = train.drop(["SalePrice", "Id"], axis=1)
+    def split_train_target(data):
+        train_target = data["SalePrice"]
+        train_data = data.drop(["SalePrice", "Id"], axis=1)
         return train_data, train_target
 
     def preprocess_data(self, data: pd.DataFrame):
         filled_data = fill_nans(data, self.explicit_converters)
         filled_data['TotalSF'] = filled_data['TotalBsmtSF'] + filled_data['1stFlrSF'] + filled_data['2ndFlrSF']
         filled_data["YrMoSold"] = filled_data["YrSold"] + filled_data["MoSold"] / 12
+        # filled_data["BsmtQualCond"] = filled_data["BsmtQual"] + filled_data["BsmtCond"]
+        # filled_data["ExterQualCond"] = filled_data["ExterQual"] + filled_data["ExterCond"]
         return filled_data
 
     def encode_labels(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -173,6 +174,11 @@ class HousePricesModel:
             le.fit(feature_labels)
             labels_by_column[feature]["encoder"] = le
             data_copy[feature] = le.transform(data[feature])
+
+        for feature in data.select_dtypes(include=['object']):
+            if feature not in self.labels_by_column:
+                print(feature + " not in encoder file: applying default label encoder")
+                data_copy[feature] = LabelEncoder().fit_transform(data[feature])
         return data_copy
 
     def invert_scale(self, sale_price_scaled_predictions):
@@ -209,7 +215,7 @@ if __name__ == '__main__':
 
     def run(description, estimator):
         print("\n", str(estimator))
-        model = HousePricesModel(estimator=estimator, labels_by_column=labels_by_column)
+        model = HousePricesModel(estimator=estimator, feature_labels=labels_by_column)
         model.fit(train)
         save(str(model.score) + "-" + description + ".csv", model.predict(test))
 
