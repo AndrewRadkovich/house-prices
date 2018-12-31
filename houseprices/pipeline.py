@@ -1,6 +1,7 @@
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+from scipy.stats import skew
 from sklearn import metrics
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import KFold, cross_val_score
@@ -165,13 +166,36 @@ class MissingValuesImputer(BaseEstimator, TransformerMixin):
         return train_copy
 
 
+class SkewnessTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, all_data):
+        self.all_data = all_data
+
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        numeric_feats = self.all_data.dtypes[self.all_data.dtypes != "object"].index
+
+        skewed_feats = self.all_data[numeric_feats].apply(lambda x: skew(x.dropna())).sort_values(ascending=False)
+        skewness = pd.DataFrame({'Skew': skewed_feats})
+        skewness = skewness[abs(skewness.Skew) > 0.75]
+
+        from scipy.special import boxcox1p
+        skewed_features = skewness.index
+        lam = 0.15
+        for feat in skewed_features:
+            # all_data[feat] += 1
+            data[feat] = boxcox1p(data[feat], lam)
+        return data
+
+
 def split_train_target(data):
     train_target = data["SalePrice"]
     train_data = data.drop(["SalePrice", "Id"], axis=1)
     return train_data, train_target
 
 
-def run_cross_validation(estimator, X, y, cv):
+def rmse_cv(estimator, X, y, cv):
     return np.sqrt(-cross_val_score(estimator=estimator,
                                     X=X,
                                     y=y,
@@ -179,17 +203,24 @@ def run_cross_validation(estimator, X, y, cv):
                                     cv=cv.get_n_splits(y)))
 
 
+def fit_full_predict(pipeline, formatted_cv_score):
+    pipeline.fit(X=train_data, y=train_target)
+    print("full train score: {}".format(pipeline.score(X=train_data, y=train_target)))
+    ids = test["Id"]
+    x_test = test.drop(["Id"], axis=1)
+    predictions = pipeline.predict(X=x_test)
+    save(formatted_cv_score + ".csv", pd.DataFrame({
+        "Id": ids,
+        "SalePrice": sale_price_converter.inv_scale(predictions).reshape(1, -1)[0]
+    }))
+
+
 if __name__ == '__main__':
     train, test = load_data()
 
-    # save_submissions("KNeighborsRegressor(n_neighbors=5).csv", run(KNeighborsRegressor(n_neighbors=5)))
-    # run("RandomForest(n_estimators=3000)", RandomForestRegressor(n_estimators=300))
-    # run("GradientBoosting(n_estimators=3000)", GradientBoostingRegressor(n_estimators=3000))
-    # run("LGBMRegressor", lgb.LGBMRegressor(objective='regression', n_estimators=3000))
-
     train_no_outliers = OutlierRemover().fit_transform(train)
-
     train_data, train_target = split_train_target(train_no_outliers)
+    all_data = pd.concat((train_data, test), sort=True)
 
     sale_price_converter = SalePriceConverter()
     train_target = sale_price_converter.scale(train_target.values.reshape(-1, 1)).reshape(1, -1)[0]
@@ -200,16 +231,13 @@ if __name__ == '__main__':
         ('total_square_feet_feature', TotalSquareFeetFeatureEnhancer()),
         ('year_month_sold_feature', YearMonthSoldFeatureEnhancer()),
         ('encode_labels', HousePricesLabelEncoder()),
+        ('skewness', SkewnessTransformer(all_data)),
         ('scale_data', StandardScaler()),
-        ('LGBMRegressor', lgb.LGBMRegressor(objective='regression', n_estimators=100)),
+        ('LGBMRegressor', lgb.LGBMRegressor(objective='regression', n_estimators=75)),
     ])
 
-    score = run_cross_validation(estimator=pipeline, X=train_data, y=train_target, cv=KFold(n_splits=5))
+    score = rmse_cv(estimator=pipeline, X=train_data, y=train_target, cv=KFold(n_splits=5))
     formatted_cv_score = "{:.4f} ({:.4f})".format(score.mean(), score.std())
     print("        cv score: " + formatted_cv_score)
-    pipeline.fit(X=train_data, y=train_target)
-    print("full train score: {}".format(pipeline.score(X=train_data, y=train_target)))
-    save(formatted_cv_score + ".csv", pd.DataFrame({
-        "Id": test["Id"],
-        "SalePrice": sale_price_converter.inv_scale(pipeline.predict(X=test.drop(["Id"], axis=1))).reshape(1, -1)[0]
-    }))
+
+    fit_full_predict(pipeline, formatted_cv_score)
