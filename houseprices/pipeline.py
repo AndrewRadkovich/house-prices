@@ -2,7 +2,9 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import KFold, cross_val_score
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from houseprices.ioutilites import read_json
@@ -47,21 +49,73 @@ def root_mean_square_error(y_predicted, y_actual):
     return np.sqrt(metrics.mean_squared_error(y_actual, y_predicted))
 
 
-def assert_has_no_nan(array: np.array):
-    assert not np.isnan(array).any()
+def save(filename, submissions: pd.DataFrame):
+    submissions.to_csv("../predictions/" + filename, index=False)
 
 
-class HousePricesModel:
-    def __init__(self, estimator, feature_labels, cv=KFold(n_splits=5)):
-        self.estimator = estimator
-        self.labels_by_column = feature_labels
-        self.train_data_scaler = StandardScaler()
-        self.sale_price_converter = SalePriceConverter()
-        self.features_to_remove = ["GarageArea", "GarageYrBlt"]
-        self.scaled_test_data = None
-        self.scaled_target = None
-        self.score = -1
-        self.cv = cv
+class OutlierRemover(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        return data.drop(data[(data["GrLivArea"] > 4500) & (data["SalePrice"] < 300000)].index)
+
+
+class FeatureRemover(BaseEstimator, TransformerMixin):
+    def __init__(self, features_to_remove):
+        self.features_to_remove = features_to_remove
+
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        return data.drop(self.features_to_remove, axis=1)
+
+
+class TotalSquareFeetFeatureEnhancer(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        data['TotalSF'] = data['TotalBsmtSF'] + data['1stFlrSF'] + data['2ndFlrSF']
+        return data
+
+
+class YearMonthSoldFeatureEnhancer(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        data["YrMoSold"] = data["YrSold"] + data["MoSold"] / 12
+        return data
+
+
+class HousePricesLabelEncoder(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.labels_by_column = read_json("../dataset/meta/labels.json")
+
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        for feature in self.labels_by_column:
+            if feature not in data:
+                continue
+            feature_labels = self.labels_by_column[feature]["feature_labels"]
+            le = LabelEncoder()
+            le.fit(feature_labels)
+            self.labels_by_column[feature]["encoder"] = le
+            data[feature] = le.transform(data[feature])
+
+        for feature in data.select_dtypes(include=['object']):
+            if feature not in self.labels_by_column:
+                print(feature + " not in encoder file: applying default label encoder")
+                data[feature] = LabelEncoder().fit_transform(data[feature])
+        return data
+
+
+class MissingValuesImputer(BaseEstimator, TransformerMixin):
+    def __init__(self):
         self.explicit_converters = {
             "LotFrontage": constant(0.0),
             "MasVnrArea": constant(0.0),
@@ -98,127 +152,64 @@ class HousePricesModel:
             "SaleType": constant("WD")
         }
 
-    def fit(self, data):
-        self.prepare_train_data(data)
+    def fit(self, x, y=None):
+        return self
 
-        self.run_cross_validation()
-
-        self.fit_full_train()
-
-    def fit_full_train(self):
-        self.estimator.fit(self.scaled_test_data, self.scaled_target)
-        full_train_score = root_mean_square_error(self.estimator.predict(self.scaled_test_data), self.scaled_target)
-        self.score = full_train_score
-        print("full train score: {}".format(full_train_score))
-
-    def predict(self, test_data):
-        test_data_ids = test_data["Id"]
-        test_data_rows = test_data.drop(["Id"], axis=1)
-
-        cleaned_from_feature_test_data = self.remove_features(test_data_rows)
-
-        preprocessed_test_data = self.preprocess_data(cleaned_from_feature_test_data)
-        encoded_test_data = self.encode(preprocessed_test_data)
-        scaled_test_data = self.scale_test_data(encoded_test_data)
-
-        sale_price_scaled_predictions = self.estimator.predict(scaled_test_data)
-
-        sale_price_predictions = self.invert_scale(sale_price_scaled_predictions)
-
-        return pd.DataFrame({"Id": test_data_ids, "SalePrice": sale_price_predictions})
-
-    def run_cross_validation(self):
-        score = np.sqrt(-cross_val_score(estimator=self.estimator,
-                                         X=self.scaled_test_data,
-                                         y=self.scaled_target,
-                                         scoring="neg_mean_squared_error",
-                                         cv=self.cv.get_n_splits(self.scaled_test_data)))
-        print("        cv score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
-
-    def prepare_train_data(self, data):
-        train_data = self.remove_outliers(data)
-        cleaned_from_features_train = self.remove_features(train_data)
-        train_data, train_target = self.split_train_target(cleaned_from_features_train)
-        preprocessed_train_data = self.preprocess_data(train_data)
-        encoded_train_data = self.encode(preprocessed_train_data)
-        self.scaled_test_data = self.scale_train_data(encoded_train_data)
-        self.scaled_target = self.scale_target(train_target)
-        print("data shape: {}".format(self.scaled_test_data.shape))
-        assert_has_no_nan(self.scaled_test_data)
-
-    @staticmethod
-    def split_train_target(data):
-        train_target = data["SalePrice"]
-        train_data = data.drop(["SalePrice", "Id"], axis=1)
-        return train_data, train_target
-
-    def preprocess_data(self, data: pd.DataFrame):
-        filled_data = fill_nans(data, self.explicit_converters)
-        filled_data['TotalSF'] = filled_data['TotalBsmtSF'] + filled_data['1stFlrSF'] + filled_data['2ndFlrSF']
-        filled_data["YrMoSold"] = filled_data["YrSold"] + filled_data["MoSold"] / 12
-        # filled_data["BsmtQualCond"] = filled_data["BsmtQual"] + filled_data["BsmtCond"]
-        # filled_data["ExterQualCond"] = filled_data["ExterQual"] + filled_data["ExterCond"]
-        return filled_data
-
-    def encode_labels(self, data: pd.DataFrame) -> pd.DataFrame:
-        data_copy = data.copy()
-        for feature in self.labels_by_column:
-            if feature not in data:
-                continue
-            feature_labels = labels_by_column[feature]["feature_labels"]
-            le = LabelEncoder()
-            le.fit(feature_labels)
-            labels_by_column[feature]["encoder"] = le
-            data_copy[feature] = le.transform(data[feature])
-
-        for feature in data.select_dtypes(include=['object']):
-            if feature not in self.labels_by_column:
-                print(feature + " not in encoder file: applying default label encoder")
-                data_copy[feature] = LabelEncoder().fit_transform(data[feature])
-        return data_copy
-
-    def invert_scale(self, sale_price_scaled_predictions):
-        return self.sale_price_converter.inv_scale(sale_price_scaled_predictions).reshape(1, -1)[0]
-
-    def encode(self, values):
-        return self.encode_labels(values).values
-
-    def scale_train_data(self, encoded_train):
-        self.train_data_scaler.fit(encoded_train)
-        return self.train_data_scaler.transform(encoded_train)
-
-    def scale_test_data(self, encoded_train):
-        return self.train_data_scaler.transform(encoded_train)
-
-    def scale_target(self, values):
-        return self.sale_price_converter.scale(values.values.reshape(-1, 1)).reshape(1, -1)[0]
-
-    @staticmethod
-    def remove_outliers(data):
-        return data.drop(data[(data["GrLivArea"] > 4500) & (data["SalePrice"] < 300000)].index)
-
-    def remove_features(self, data: pd.DataFrame):
-        return data.drop(self.features_to_remove, axis=1)
+    def transform(self, data):
+        train_copy = data.copy()
+        for index, row in train_copy.iterrows():
+            for feature in row.keys():
+                if feature in self.explicit_converters:
+                    new_value = self.explicit_converters[feature](row[feature])
+                    train_copy.at[index, feature] = new_value
+        return train_copy
 
 
-def save(filename, submissions: pd.DataFrame):
-    submissions.to_csv("../predictions/" + filename, index=False)
+def split_train_target(data):
+    train_target = data["SalePrice"]
+    train_data = data.drop(["SalePrice", "Id"], axis=1)
+    return train_data, train_target
+
+
+def run_cross_validation(estimator, X, y, cv):
+    return np.sqrt(-cross_val_score(estimator=estimator,
+                                    X=X,
+                                    y=y,
+                                    scoring="neg_mean_squared_error",
+                                    cv=cv.get_n_splits(y)))
 
 
 if __name__ == '__main__':
-    labels_by_column = read_json("../dataset/meta/labels.json")
-
-
-    def run(description, estimator):
-        print("\n", str(estimator))
-        model = HousePricesModel(estimator=estimator, feature_labels=labels_by_column)
-        model.fit(train)
-        save(str(model.score) + "-" + description + ".csv", model.predict(test))
-
-
     train, test = load_data()
 
     # save_submissions("KNeighborsRegressor(n_neighbors=5).csv", run(KNeighborsRegressor(n_neighbors=5)))
     # run("RandomForest(n_estimators=3000)", RandomForestRegressor(n_estimators=300))
     # run("GradientBoosting(n_estimators=3000)", GradientBoostingRegressor(n_estimators=3000))
-    run("LGBMRegressor", lgb.LGBMRegressor(objective='regression', n_estimators=3000))
+    # run("LGBMRegressor", lgb.LGBMRegressor(objective='regression', n_estimators=3000))
+
+    train_no_outliers = OutlierRemover().fit_transform(train)
+
+    train_data, train_target = split_train_target(train_no_outliers)
+
+    sale_price_converter = SalePriceConverter()
+    train_target = sale_price_converter.scale(train_target.values.reshape(-1, 1)).reshape(1, -1)[0]
+
+    pipeline = Pipeline([
+        ('remove_features', FeatureRemover(["GarageArea", "GarageYrBlt"])),
+        ('fill_missing', MissingValuesImputer()),
+        ('total_square_feet_feature', TotalSquareFeetFeatureEnhancer()),
+        ('year_month_sold_feature', YearMonthSoldFeatureEnhancer()),
+        ('encode_labels', HousePricesLabelEncoder()),
+        ('scale_data', StandardScaler()),
+        ('LGBMRegressor', lgb.LGBMRegressor(objective='regression', n_estimators=100)),
+    ])
+
+    score = run_cross_validation(estimator=pipeline, X=train_data, y=train_target, cv=KFold(n_splits=5))
+    formatted_cv_score = "{:.4f} ({:.4f})".format(score.mean(), score.std())
+    print("        cv score: " + formatted_cv_score)
+    pipeline.fit(X=train_data, y=train_target)
+    print("full train score: {}".format(pipeline.score(X=train_data, y=train_target)))
+    save(formatted_cv_score + ".csv", pd.DataFrame({
+        "Id": test["Id"],
+        "SalePrice": sale_price_converter.inv_scale(pipeline.predict(X=test.drop(["Id"], axis=1))).reshape(1, -1)[0]
+    }))
