@@ -1,6 +1,7 @@
 cycler==0.10.0
 kiwisolver==1.0.1
 lightgbm==2.2.2
+xgboost==0.81
 matplotlib==3.0.2
 numpy==1.15.4
 pandas==0.23.4

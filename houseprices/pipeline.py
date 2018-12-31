@@ -1,4 +1,5 @@
 import lightgbm as lgb
+import xgboost as xgb
 import numpy as np
 import pandas as pd
 from scipy.stats import skew
@@ -77,17 +78,30 @@ class TotalSquareFeetFeatureEnhancer(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
-    def transform(self, data):
+    def transform(self, data: pd.DataFrame):
+        data['FlrSF'] = data['1stFlrSF'] + data['2ndFlrSF']
         data['TotalSF'] = data['TotalBsmtSF'] + data['1stFlrSF'] + data['2ndFlrSF']
         return data
 
 
 class YearMonthSoldFeatureEnhancer(BaseEstimator, TransformerMixin):
+    def __init__(self, ted_rates):
+        self.ted_rates = ted_rates
+
     def fit(self, x, y=None):
         return self
 
     def transform(self, data):
+        def is_crisis(x):
+            if 2007 <= x <= 2008:
+                return 'Y'
+            else:
+                return 'N'
+
+        # data["is_crisis"] = data["YrSold"].apply(is_crisis)
         data["YrMoSold"] = data["YrSold"] + data["MoSold"] / 12
+        year_month_sold = data["YrSold"].astype(str) + "-" + data["MoSold"].apply(lambda x: '{0:02d}'.format(x))
+        data["TedRate"] = year_month_sold.apply(lambda x: self.ted_rates['TEDRATE'][x])
         return data
 
 
@@ -217,9 +231,14 @@ def fit_full_predict(pipeline, formatted_cv_score):
 
 if __name__ == '__main__':
     train, test = load_data()
+    tedrate_csv = pd.read_csv("../dataset/TEDRATE.csv")
+    tedrate_csv["DATE"] = tedrate_csv["DATE"].apply(lambda x: x[:7])
+    tedrate_by_year_month = tedrate_csv.groupby("DATE").mean()
 
-    train_no_outliers = OutlierRemover().fit_transform(train)
-    train_data, train_target = split_train_target(train_no_outliers)
+    train = OutlierRemover().fit_transform(train)
+    print("train data shape: {}".format(train.shape))
+
+    train_data, train_target = split_train_target(train)
     all_data = pd.concat((train_data, test), sort=True)
 
     sale_price_converter = SalePriceConverter()
@@ -229,11 +248,12 @@ if __name__ == '__main__':
         ('remove_features', FeatureRemover(["GarageArea", "GarageYrBlt"])),
         ('fill_missing', MissingValuesImputer()),
         ('total_square_feet_feature', TotalSquareFeetFeatureEnhancer()),
-        ('year_month_sold_feature', YearMonthSoldFeatureEnhancer()),
+        ('year_month_sold_feature', YearMonthSoldFeatureEnhancer(tedrate_by_year_month)),
         ('encode_labels', HousePricesLabelEncoder()),
         ('skewness', SkewnessTransformer(all_data)),
         ('scale_data', StandardScaler()),
-        ('LGBMRegressor', lgb.LGBMRegressor(objective='regression', n_estimators=75)),
+        # ('LGBMRegressor', lgb.LGBMRegressor(objective='regression', n_estimators=75, random_state=42)),
+        ('LGBMRegressor', xgb.XGBRegressor(n_estimators=150)),
     ])
 
     score = rmse_cv(estimator=pipeline, X=train_data, y=train_target, cv=KFold(n_splits=5))
