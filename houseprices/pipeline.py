@@ -1,16 +1,12 @@
-import logging as log
-
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn import metrics
-from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from houseprices.ioutilites import read_json
 from houseprices.preprocessing import SalePriceConverter
-
-log.getLogger().setLevel(log.INFO)
 
 
 def load_data():
@@ -224,4 +220,5 @@ if __name__ == '__main__':
 
     # save_submissions("KNeighborsRegressor(n_neighbors=5).csv", run(KNeighborsRegressor(n_neighbors=5)))
     # run("RandomForest(n_estimators=3000)", RandomForestRegressor(n_estimators=300))
-    run("GradientBoosting(n_estimators=3000)", GradientBoostingRegressor(n_estimators=3000))
+    # run("GradientBoosting(n_estimators=3000)", GradientBoostingRegressor(n_estimators=3000))
+    run("LGBMRegressor", lgb.LGBMRegressor(objective='regression', n_estimators=3000))
