@@ -92,16 +92,7 @@ class YearMonthSoldFeatureEnhancer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, data):
-        def is_crisis(x):
-            if 2007 <= x <= 2008:
-                return 'Y'
-            else:
-                return 'N'
-
-        # data["is_crisis"] = data["YrSold"].apply(is_crisis)
         data["YrMoSold"] = data["YrSold"] + data["MoSold"] / 12
-        year_month_sold = data["YrSold"].astype(str) + "-" + data["MoSold"].apply(lambda x: '{0:02d}'.format(x))
-        data["TedRate"] = year_month_sold.apply(lambda x: self.ted_rates['TEDRATE'][x])
         return data
 
 
@@ -129,7 +120,7 @@ class HousePricesLabelEncoder(BaseEstimator, TransformerMixin):
         return data
 
 
-class MissingValuesImputer(BaseEstimator, TransformerMixin):
+class MissingValuesTransformer(BaseEstimator, TransformerMixin):
     def __init__(self):
         self.explicit_converters = {
             "LotFrontage": constant(0.0),
@@ -157,7 +148,6 @@ class MissingValuesImputer(BaseEstimator, TransformerMixin):
             "GarageFinish": constant("NA"),
             "GarageType": constant("NA"),
             "GarageCars": constant(0),
-            # "GarageArea": constant(0),
             "MSZoning": constant("RL"),
             "Utilities": constant("AllPub"),
             "Exterior1st": constant("VinylSd"),
@@ -189,17 +179,45 @@ class SkewnessTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, data):
         numeric_feats = self.all_data.dtypes[self.all_data.dtypes != "object"].index
-
         skewed_feats = self.all_data[numeric_feats].apply(lambda x: skew(x.dropna())).sort_values(ascending=False)
         skewness = pd.DataFrame({'Skew': skewed_feats})
         skewness = skewness[abs(skewness.Skew) > 0.75]
+        for feat in skewness.index:
+            data[feat] = np.log1p(data[feat])
+        return data
 
-        from scipy.special import boxcox1p
-        skewed_features = skewness.index
-        lam = 0.15
-        for feat in skewed_features:
-            # all_data[feat] += 1
-            data[feat] = boxcox1p(data[feat], lam)
+
+class GarageFeatures(BaseEstimator, TransformerMixin):
+    def __init__(self, all_data):
+        self.all_data = all_data
+        self.garage_area_by_cars = self.all_data.groupby("GarageCars")["GarageArea"].mean()
+
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        data["GarageScore"] = data["GarageFinish"] + data["GarageQual"] + data["GarageCond"]
+        data["HeatingScore"] = data["Heating"] + data["HeatingQC"]
+        data["ExterScore"] = data["ExterQual"] + data["ExterCond"]
+
+        data["OverallQualP2"] = data["OverallQual"] ** 2
+        data["OverallQualP3"] = data["OverallQual"] ** 3
+
+        data["OverallCondP2"] = data["OverallCond"] ** 2
+        data["OverallCondP3"] = data["OverallCond"] ** 3
+
+        data["OverallQualSimple"] = data["OverallQual"].replace({
+            1: 0,
+            2: 0,
+            3: 0,
+            4: 0,
+            5: 1,
+            6: 1,
+            7: 1,
+            8: 1,
+            9: 2,
+            10: 2,
+        })
         return data
 
 
@@ -214,19 +232,18 @@ def rmse_cv(estimator, X, y, cv):
                                     X=X,
                                     y=y,
                                     scoring="neg_mean_squared_error",
-                                    cv=cv.get_n_splits(y)))
+                                    cv=cv.get_n_splits(y),
+                                    verbose=2,
+                                    n_jobs=8))
 
 
-def fit_full_predict(pipeline, formatted_cv_score):
-    pipeline.fit(X=train_data, y=train_target)
-    print("full train score: {}".format(pipeline.score(X=train_data, y=train_target)))
-    ids = test["Id"]
-    x_test = test.drop(["Id"], axis=1)
-    predictions = pipeline.predict(X=x_test)
-    save(formatted_cv_score + ".csv", pd.DataFrame({
-        "Id": ids,
-        "SalePrice": sale_price_converter.inv_scale(predictions).reshape(1, -1)[0]
-    }))
+def fit_full_predict(estimator, scaled_train_data, scaled_train_target, scaled_test_data):
+    estimator.fit(X=scaled_train_data, y=scaled_train_target)
+    p = estimator.predict(X=scaled_train_data, y=scaled_train_target)
+    rmse = root_mean_square_error(p, scaled_train_target)
+    print("rullset rmse: {:.5f}".format(rmse))
+    predictions = estimator.predict(X=scaled_test_data)
+    return sale_price_converter.inv_scale(predictions).reshape(1, -1)[0]
 
 
 if __name__ == '__main__':
@@ -242,22 +259,34 @@ if __name__ == '__main__':
     all_data = pd.concat((train_data, test), sort=True)
 
     sale_price_converter = SalePriceConverter()
-    train_target = sale_price_converter.scale(train_target.values.reshape(-1, 1)).reshape(1, -1)[0]
+    scaled_train_target = sale_price_converter.scale(train_target.values.reshape(-1, 1)).reshape(1, -1)[0]
 
     pipeline = Pipeline([
-        ('remove_features', FeatureRemover(["GarageArea", "GarageYrBlt"])),
-        ('fill_missing', MissingValuesImputer()),
+        ('remove_features', FeatureRemover(["GarageYrBlt"])),
+        ('fill_missing', MissingValuesTransformer()),
+        ('garage_features', GarageFeatures(all_data)),
         ('total_square_feet_feature', TotalSquareFeetFeatureEnhancer()),
         ('year_month_sold_feature', YearMonthSoldFeatureEnhancer(tedrate_by_year_month)),
         ('encode_labels', HousePricesLabelEncoder()),
         ('skewness', SkewnessTransformer(all_data)),
-        ('scale_data', StandardScaler()),
-        # ('LGBMRegressor', lgb.LGBMRegressor(objective='regression', n_estimators=75, random_state=42)),
-        ('LGBMRegressor', xgb.XGBRegressor(n_estimators=150)),
+        ('scale_data', StandardScaler())
     ])
 
-    score = rmse_cv(estimator=pipeline, X=train_data, y=train_target, cv=KFold(n_splits=5))
+    scaled_train_data = pipeline.fit_transform(X=train_data, y=scaled_train_target)
+
+    estimator = lgb.LGBMRegressor(objective='regression', n_estimators=300, random_state=42)
+
+    score = rmse_cv(estimator=estimator,
+                    X=scaled_train_data,
+                    y=scaled_train_target,
+                    cv=KFold(n_splits=5, shuffle=False))
     formatted_cv_score = "{:.4f} ({:.4f})".format(score.mean(), score.std())
     print("        cv score: " + formatted_cv_score)
 
-    fit_full_predict(pipeline, formatted_cv_score)
+    ids = test["Id"]
+    scaled_test_data = pipeline.fit_transform(X=test.drop(["Id"], axis=1))
+    sale_prices = fit_full_predict(estimator, scaled_train_data, scaled_train_target, scaled_test_data)
+    save(formatted_cv_score + ".csv", pd.DataFrame({
+        "Id": ids,
+        "SalePrice": sale_prices
+    }))

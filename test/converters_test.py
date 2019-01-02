@@ -10,7 +10,7 @@ class SalePriceConverterTest(unittest.TestCase):
         array = np.array([1234., 2345., 3456.]).reshape(-1, 1)
         scaled_array = sale_price_converter.scale(array)
         inv_scaled = sale_price_converter.inv_scale(scaled_array)
-        self.assertTrue((inv_scaled == array).all())
+        self.assertTrue((np.round(inv_scaled) == np.round(array)).all())
 
 
 if __name__ == '__main__':
