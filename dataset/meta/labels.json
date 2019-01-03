@@ -31,41 +31,12 @@
       "RM"
     ]
   },
-  "Street": {
-    "feature_labels": [
-      "Grvl",
-      "Pave"
-    ]
-  },
-  "Alley": {
-    "feature_labels": [
-      "Grvl",
-      "Pave",
-      "NA"
-    ]
-  },
-  "LotShape": {
-    "feature_labels": [
-      "Reg",
-      "IR1",
-      "IR2",
-      "IR3"
-    ]
-  },
   "LandContour": {
     "feature_labels": [
       "Lvl",
       "Bnk",
       "HLS",
       "Low"
-    ]
-  },
-  "Utilities": {
-    "feature_labels": [
-      "AllPub",
-      "NoSewr",
-      "NoSeWa",
-      "ELO"
     ]
   },
   "LotConfig": {
@@ -75,13 +46,6 @@
       "CulDSac",
       "FR2",
       "FR3"
-    ]
-  },
-  "LandSlope": {
-    "feature_labels": [
-      "Gtl",
-      "Mod",
-      "Sev"
     ]
   },
   "Neighborhood": {
@@ -234,24 +198,6 @@
       "Stone"
     ]
   },
-  "ExterQual": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po"
-    ]
-  },
-  "ExterCond": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po"
-    ]
-  },
   "Foundation": {
     "feature_labels": [
       "BrkTil",
@@ -262,57 +208,6 @@
       "Wood"
     ]
   },
-  "BsmtQual": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po",
-      "NA"
-    ]
-  },
-  "BsmtCond": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po",
-      "NA"
-    ]
-  },
-  "BsmtExposure": {
-    "feature_labels": [
-      "Gd",
-      "Av",
-      "Mn",
-      "No",
-      "NA"
-    ]
-  },
-  "BsmtFinType1": {
-    "feature_labels": [
-      "GLQ",
-      "ALQ",
-      "BLQ",
-      "Rec",
-      "LwQ",
-      "Unf",
-      "NA"
-    ]
-  },
-  "BsmtFinType2": {
-    "feature_labels": [
-      "GLQ",
-      "ALQ",
-      "BLQ",
-      "Rec",
-      "LwQ",
-      "Unf",
-      "NA"
-    ]
-  },
   "Heating": {
     "feature_labels": [
       "Floor",
@@ -321,15 +216,6 @@
       "Grav",
       "OthW",
       "Wall"
-    ]
-  },
-  "HeatingQC": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po"
     ]
   },
   "CentralAir": {
@@ -345,37 +231,6 @@
       "FuseF",
       "FuseP",
       "Mix"
-    ]
-  },
-  "KitchenQual": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po"
-    ]
-  },
-  "Functional": {
-    "feature_labels": [
-      "Typ",
-      "Min1",
-      "Min2",
-      "Mod",
-      "Maj1",
-      "Maj2",
-      "Sev",
-      "Sal"
-    ]
-  },
-  "FireplaceQu": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po",
-      "NA"
     ]
   },
   "GarageType": {
@@ -394,42 +249,6 @@
       "Fin",
       "RFn",
       "Unf",
-      "NA"
-    ]
-  },
-  "GarageQual": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po",
-      "NA"
-    ]
-  },
-  "GarageCond": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
-      "Po",
-      "NA"
-    ]
-  },
-  "PavedDrive": {
-    "feature_labels": [
-      "Y",
-      "P",
-      "N"
-    ]
-  },
-  "PoolQC": {
-    "feature_labels": [
-      "Ex",
-      "Gd",
-      "TA",
-      "Fa",
       "NA"
     ]
   },

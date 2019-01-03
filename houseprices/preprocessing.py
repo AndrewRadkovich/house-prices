@@ -16,7 +16,7 @@ class SalePriceConverter:
         return data
 
     def scale(self, array: np.ndarray) -> np.ndarray:
-        return self.scaler.fit_transform(np.log1p(self.min_max_scaler.fit_transform(array)))
+        return np.log1p(array)
 
     def inv_scale(self, array: np.ndarray) -> np.ndarray:
-        return self.min_max_scaler.inverse_transform(np.expm1(self.scaler.inverse_transform(array).reshape(-1, 1)))
+        return np.expm1(array).reshape(-1, 1)

@@ -187,38 +187,36 @@ class SkewnessTransformer(BaseEstimator, TransformerMixin):
         return data
 
 
-class GarageFeatures(BaseEstimator, TransformerMixin):
-    def __init__(self, all_data):
-        self.all_data = all_data
-        self.garage_area_by_cars = self.all_data.groupby("GarageCars")["GarageArea"].mean()
+class OrderedLabelsTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.ordered_labels = {
+            "Alley": {"NA": 0, "Grvl": 1, "Pave": 2},
+            "BsmtCond": {"NA": 0, "No": 1, "Po": 2, "Fa": 3, "TA": 4, "Gd": 5, "Ex": 6},
+            "BsmtExposure": {"NA": 0, "No": 1, "Mn": 2, "Av": 3, "Gd": 4},
+            "BsmtFinType1": {"NA": 0, "No": 1, "Unf": 2, "LwQ": 3, "Rec": 4, "BLQ": 5, "ALQ": 6, "GLQ": 7},
+            "BsmtFinType2": {"NA": 0, "No": 1, "Unf": 2, "LwQ": 3, "Rec": 4, "BLQ": 5, "ALQ": 6, "GLQ": 7},
+            "BsmtQual": {"NA": 0, "No": 1, "Po": 2, "Fa": 3, "TA": 4, "Gd": 5, "Ex": 6},
+            "ExterCond": {"Po": 1, "Fa": 2, "TA": 3, "Gd": 4, "Ex": 5},
+            "ExterQual": {"Po": 1, "Fa": 2, "TA": 3, "Gd": 4, "Ex": 5},
+            "FireplaceQu": {"NA": 0, "No": 1, "Po": 2, "Fa": 3, "TA": 4, "Gd": 5, "Ex": 6},
+            "Functional": {"Sal": 1, "Sev": 2, "Maj2": 3, "Maj1": 4, "Mod": 5, "Min2": 6, "Min1": 7, "Typ": 8},
+            "GarageCond": {"NA": 0, "No": 1, "Po": 2, "Fa": 3, "TA": 4, "Gd": 5, "Ex": 6},
+            "GarageQual": {"NA": 0, "No": 1, "Po": 2, "Fa": 3, "TA": 4, "Gd": 5, "Ex": 6},
+            "HeatingQC": {"Po": 1, "Fa": 2, "TA": 3, "Gd": 4, "Ex": 5},
+            "KitchenQual": {"Po": 1, "Fa": 2, "TA": 3, "Gd": 4, "Ex": 5},
+            "LandSlope": {"Sev": 1, "Mod": 2, "Gtl": 3},
+            "LotShape": {"IR3": 1, "IR2": 2, "IR1": 3, "Reg": 4},
+            "PavedDrive": {"N": 0, "P": 1, "Y": 2},
+            "PoolQC": {"NA": 0, "No": 1, "Fa": 2, "TA": 3, "Gd": 4, "Ex": 5},
+            "Street": {"Grvl": 1, "Pave": 2},
+            "Utilities": {"ELO": 1, "NoSeWa": 2, "NoSewr": 3, "AllPub": 4}
+        }
 
     def fit(self, x, y=None):
         return self
 
     def transform(self, data):
-        data["GarageScore"] = data["GarageFinish"] + data["GarageQual"] + data["GarageCond"]
-        data["HeatingScore"] = data["Heating"] + data["HeatingQC"]
-        data["ExterScore"] = data["ExterQual"] + data["ExterCond"]
-
-        data["OverallQualP2"] = data["OverallQual"] ** 2
-        data["OverallQualP3"] = data["OverallQual"] ** 3
-
-        data["OverallCondP2"] = data["OverallCond"] ** 2
-        data["OverallCondP3"] = data["OverallCond"] ** 3
-
-        data["OverallQualSimple"] = data["OverallQual"].replace({
-            1: 0,
-            2: 0,
-            3: 0,
-            4: 0,
-            5: 1,
-            6: 1,
-            7: 1,
-            8: 1,
-            9: 2,
-            10: 2,
-        })
-        return data
+        return data.replace(self.ordered_labels)
 
 
 def split_train_target(data):
@@ -264,7 +262,7 @@ if __name__ == '__main__':
     pipeline = Pipeline([
         ('remove_features', FeatureRemover(["GarageYrBlt"])),
         ('fill_missing', MissingValuesTransformer()),
-        ('garage_features', GarageFeatures(all_data)),
+        ('ordered_features', OrderedLabelsTransformer()),
         ('total_square_feet_feature', TotalSquareFeetFeatureEnhancer()),
         ('year_month_sold_feature', YearMonthSoldFeatureEnhancer(tedrate_by_year_month)),
         ('encode_labels', HousePricesLabelEncoder()),
@@ -274,7 +272,7 @@ if __name__ == '__main__':
 
     scaled_train_data = pipeline.fit_transform(X=train_data, y=scaled_train_target)
 
-    estimator = lgb.LGBMRegressor(objective='regression', n_estimators=300, random_state=42)
+    estimator = lgb.LGBMRegressor(objective='regression', n_estimators=100, random_state=42)
 
     score = rmse_cv(estimator=estimator,
                     X=scaled_train_data,
