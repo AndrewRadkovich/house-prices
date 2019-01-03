@@ -10,7 +10,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 from houseprices.ioutilites import read_json
-from houseprices.preprocessing import SalePriceConverter
 
 
 def load_data():
@@ -74,20 +73,7 @@ class FeatureRemover(BaseEstimator, TransformerMixin):
         return data.drop(self.features_to_remove, axis=1)
 
 
-class TotalSquareFeetFeatureEnhancer(BaseEstimator, TransformerMixin):
-    def fit(self, x, y=None):
-        return self
-
-    def transform(self, data: pd.DataFrame):
-        data['FlrSF'] = data['1stFlrSF'] + data['2ndFlrSF']
-        data['TotalSF'] = data['TotalBsmtSF'] + data['1stFlrSF'] + data['2ndFlrSF']
-        return data
-
-
 class YearMonthSoldFeatureEnhancer(BaseEstimator, TransformerMixin):
-    def __init__(self, ted_rates):
-        self.ted_rates = ted_rates
-
     def fit(self, x, y=None):
         return self
 
@@ -219,6 +205,162 @@ class OrderedLabelsTransformer(BaseEstimator, TransformerMixin):
         return data.replace(self.ordered_labels)
 
 
+class SimplifiedFeatures(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        data["SimplOverallQual"] = data.OverallQual.replace({1: 1, 2: 1, 3: 1,  # bad
+                                                             4: 2, 5: 2, 6: 2,  # average
+                                                             7: 3, 8: 3, 9: 3, 10: 3  # good
+                                                             })
+        data["SimplOverallCond"] = data.OverallCond.replace({1: 1, 2: 1, 3: 1,  # bad
+                                                             4: 2, 5: 2, 6: 2,  # average
+                                                             7: 3, 8: 3, 9: 3, 10: 3  # good
+                                                             })
+        data["SimplPoolQC"] = data.PoolQC.replace({1: 1, 2: 1,  # average
+                                                   3: 2, 4: 2  # good
+                                                   })
+        data["SimplGarageCond"] = data.GarageCond.replace({1: 1,  # bad
+                                                           2: 1, 3: 1,  # average
+                                                           4: 2, 5: 2  # good
+                                                           })
+        data["SimplGarageQual"] = data.GarageQual.replace({1: 1,  # bad
+                                                           2: 1, 3: 1,  # average
+                                                           4: 2, 5: 2  # good
+                                                           })
+        data["SimplFireplaceQu"] = data.FireplaceQu.replace({1: 1,  # bad
+                                                             2: 1, 3: 1,  # average
+                                                             4: 2, 5: 2  # good
+                                                             })
+        data["SimplFunctional"] = data.Functional.replace({1: 1, 2: 1,  # bad
+                                                           3: 2, 4: 2,  # major
+                                                           5: 3, 6: 3, 7: 3,  # minor
+                                                           8: 4  # typical
+                                                           })
+        data["SimplKitchenQual"] = data.KitchenQual.replace({1: 1,  # bad
+                                                             2: 1, 3: 1,  # average
+                                                             4: 2, 5: 2  # good
+                                                             })
+        data["SimplHeatingQC"] = data.HeatingQC.replace({1: 1,  # bad
+                                                         2: 1, 3: 1,  # average
+                                                         4: 2, 5: 2  # good
+                                                         })
+        data["SimplBsmtFinType1"] = data.BsmtFinType1.replace({1: 1,  # unfinished
+                                                               2: 1, 3: 1,  # rec room
+                                                               4: 2, 5: 2, 6: 2  # living quarters
+                                                               })
+        data["SimplBsmtFinType2"] = data.BsmtFinType2.replace({1: 1,  # unfinished
+                                                               2: 1, 3: 1,  # rec room
+                                                               4: 2, 5: 2, 6: 2  # living quarters
+                                                               })
+        data["SimplBsmtCond"] = data.BsmtCond.replace({1: 1,  # bad
+                                                       2: 1, 3: 1,  # average
+                                                       4: 2, 5: 2  # good
+                                                       })
+        data["SimplBsmtQual"] = data.BsmtQual.replace({1: 1,  # bad
+                                                       2: 1, 3: 1,  # average
+                                                       4: 2, 5: 2  # good
+                                                       })
+        data["SimplExterCond"] = data.ExterCond.replace({1: 1,  # bad
+                                                         2: 1, 3: 1,  # average
+                                                         4: 2, 5: 2  # good
+                                                         })
+        data["SimplExterQual"] = data.ExterQual.replace({1: 1,  # bad
+                                                         2: 1, 3: 1,  # average
+                                                         4: 2, 5: 2  # good
+                                                         })
+        return data
+
+
+class CombinedFeatures(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        # 2* Combinations of existing features
+        # Overall quality of the house
+        data["OverallGrade"] = data["OverallQual"] * data["OverallCond"]
+        # Overall quality of the garage
+        data["GarageGrade"] = data["GarageQual"] * data["GarageCond"]
+        # Overall quality of the exterior
+        data["ExterGrade"] = data["ExterQual"] * data["ExterCond"]
+        # Overall kitchen score
+        data["KitchenScore"] = data["KitchenAbvGr"] * data["KitchenQual"]
+        # Overall fireplace score
+        data["FireplaceScore"] = data["Fireplaces"] * data["FireplaceQu"]
+        # Overall garage score
+        data["GarageScore"] = data["GarageArea"] * data["GarageQual"]
+        # Overall pool score
+        data["PoolScore"] = data["PoolArea"] * data["PoolQC"]
+        # Simplified overall quality of the house
+        data["SimplOverallGrade"] = data["SimplOverallQual"] * data["SimplOverallCond"]
+        # Simplified overall quality of the exterior
+        data["SimplExterGrade"] = data["SimplExterQual"] * data["SimplExterCond"]
+        # Simplified overall pool score
+        data["SimplPoolScore"] = data["PoolArea"] * data["SimplPoolQC"]
+        # Simplified overall garage score
+        data["SimplGarageScore"] = data["GarageArea"] * data["SimplGarageQual"]
+        # Simplified overall fireplace score
+        data["SimplFireplaceScore"] = data["Fireplaces"] * data["SimplFireplaceQu"]
+        # Simplified overall kitchen score
+        data["SimplKitchenScore"] = data["KitchenAbvGr"] * data["SimplKitchenQual"]
+        # Total number of bathrooms
+        data["TotalBath"] = data["BsmtFullBath"] + (0.5 * data["BsmtHalfBath"]) + data["FullBath"] + (
+            0.5 * data["HalfBath"])
+        # Total SF for house (incl. basement)
+        data["AllSF"] = data["GrLivArea"] + data["TotalBsmtSF"]
+        # Total SF for 1st + 2nd floors
+        data["AllFlrsSF"] = data["1stFlrSF"] + data["2ndFlrSF"]
+        # Total SF for porch
+        data["AllPorchSF"] = data["OpenPorchSF"] + data["EnclosedPorch"] + data["3SsnPorch"] + data["ScreenPorch"]
+        # Has masonry veneer or not
+        data["HasMasVnr"] = data.MasVnrType.replace({"BrkCmn": 1, "BrkFace": 1, "CBlock": 1, "Stone": 1, "None": 0})
+        # House completed before sale or not
+        data["BoughtOffPlan"] = data.SaleCondition.replace({"Abnorml": 0, "Alloca": 0, "AdjLand": 0,
+                                                            "Family": 0, "Normal": 0, "Partial": 1})
+        return data
+
+
+class PolynomialFeatures(BaseEstimator, TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, data):
+        data["OverallQual-s2"] = data["OverallQual"] ** 2
+        data["OverallQual-s3"] = data["OverallQual"] ** 3
+        data["OverallQual-Sq"] = np.sqrt(data["OverallQual"])
+        data["AllSF-2"] = data["AllSF"] ** 2
+        data["AllSF-3"] = data["AllSF"] ** 3
+        data["AllSF-Sq"] = np.sqrt(data["AllSF"])
+        data["AllFlrsSF-2"] = data["AllFlrsSF"] ** 2
+        data["AllFlrsSF-3"] = data["AllFlrsSF"] ** 3
+        data["AllFlrsSF-Sq"] = np.sqrt(data["AllFlrsSF"])
+        data["GrLivArea-2"] = data["GrLivArea"] ** 2
+        data["GrLivArea-3"] = data["GrLivArea"] ** 3
+        data["GrLivArea-Sq"] = np.sqrt(data["GrLivArea"])
+        data["SimplOverallQual-s2"] = data["SimplOverallQual"] ** 2
+        data["SimplOverallQual-s3"] = data["SimplOverallQual"] ** 3
+        data["SimplOverallQual-Sq"] = np.sqrt(data["SimplOverallQual"])
+        data["ExterQual-2"] = data["ExterQual"] ** 2
+        data["ExterQual-3"] = data["ExterQual"] ** 3
+        data["ExterQual-Sq"] = np.sqrt(data["ExterQual"])
+        data["GarageCars-2"] = data["GarageCars"] ** 2
+        data["GarageCars-3"] = data["GarageCars"] ** 3
+        data["GarageCars-Sq"] = np.sqrt(data["GarageCars"])
+        data["TotalBath-2"] = data["TotalBath"] ** 2
+        data["TotalBath-3"] = data["TotalBath"] ** 3
+        data["TotalBath-Sq"] = np.sqrt(data["TotalBath"])
+        data["KitchenQual-2"] = data["KitchenQual"] ** 2
+        data["KitchenQual-3"] = data["KitchenQual"] ** 3
+        data["KitchenQual-Sq"] = np.sqrt(data["KitchenQual"])
+        data["GarageScore-2"] = data["GarageScore"] ** 2
+        data["GarageScore-3"] = data["GarageScore"] ** 3
+        data["GarageScore-Sq"] = np.sqrt(data["GarageScore"])
+
+        return data
+
+
 def split_train_target(data):
     train_target = data["SalePrice"]
     train_data = data.drop(["SalePrice", "Id"], axis=1)
@@ -231,53 +373,39 @@ def rmse_cv(estimator, X, y, cv):
                                     y=y,
                                     scoring="neg_mean_squared_error",
                                     cv=cv.get_n_splits(y),
-                                    verbose=2,
+                                    verbose=1,
                                     n_jobs=8))
 
 
 def fit_full_predict(estimator, scaled_train_data, scaled_train_target, scaled_test_data):
     estimator.fit(X=scaled_train_data, y=scaled_train_target)
-    p = estimator.predict(X=scaled_train_data, y=scaled_train_target)
-    rmse = root_mean_square_error(p, scaled_train_target)
-    print("rullset rmse: {:.5f}".format(rmse))
-    predictions = estimator.predict(X=scaled_test_data)
-    return sale_price_converter.inv_scale(predictions).reshape(1, -1)[0]
+    predictions = estimator.predict(scaled_test_data)
+    return inv_scale(predictions)
 
 
-if __name__ == '__main__':
+def main():
     train, test = load_data()
-    tedrate_csv = pd.read_csv("../dataset/TEDRATE.csv")
-    tedrate_csv["DATE"] = tedrate_csv["DATE"].apply(lambda x: x[:7])
-    tedrate_by_year_month = tedrate_csv.groupby("DATE").mean()
-
     train = OutlierRemover().fit_transform(train)
     print("train data shape: {}".format(train.shape))
-
     train_data, train_target = split_train_target(train)
     all_data = pd.concat((train_data, test), sort=True)
-
-    sale_price_converter = SalePriceConverter()
-    scaled_train_target = sale_price_converter.scale(train_target.values.reshape(-1, 1)).reshape(1, -1)[0]
-
+    scaled_train_target = scale(train_target)
     pipeline = Pipeline([
         ('remove_features', FeatureRemover(["GarageYrBlt"])),
         ('fill_missing', MissingValuesTransformer()),
         ('ordered_features', OrderedLabelsTransformer()),
-        ('total_square_feet_feature', TotalSquareFeetFeatureEnhancer()),
-        ('year_month_sold_feature', YearMonthSoldFeatureEnhancer(tedrate_by_year_month)),
+        ('simplified_features', SimplifiedFeatures()),
+        ('combined_features', CombinedFeatures()),
+        ('polynomial_features', PolynomialFeatures()),
+        ('year_month_sold_feature', YearMonthSoldFeatureEnhancer()),
         ('encode_labels', HousePricesLabelEncoder()),
         ('skewness', SkewnessTransformer(all_data)),
         ('scale_data', StandardScaler())
     ])
-
     scaled_train_data = pipeline.fit_transform(X=train_data, y=scaled_train_target)
-
-    estimator = lgb.LGBMRegressor(objective='regression', n_estimators=100, random_state=42)
-
-    score = rmse_cv(estimator=estimator,
-                    X=scaled_train_data,
-                    y=scaled_train_target,
-                    cv=KFold(n_splits=5, shuffle=False))
+    estimator = xgb.XGBRegressor(n_estimators=350, max_depth=2, learning_rate=0.1)
+    # estimator = lgb.LGBMRegressor(objective='regression', n_estimators=450, max_depth=2, random_state=42)
+    score = rmse_cv(estimator=estimator, X=scaled_train_data, y=scaled_train_target, cv=KFold(n_splits=5))
     formatted_cv_score = "{:.4f} ({:.4f})".format(score.mean(), score.std())
     print("        cv score: " + formatted_cv_score)
 
@@ -288,3 +416,15 @@ if __name__ == '__main__':
         "Id": ids,
         "SalePrice": sale_prices
     }))
+
+
+def scale(train_target):
+    return np.log1p(train_target.values.reshape(-1, 1)).reshape(1, -1)[0]
+
+
+def inv_scale(predictions):
+    return np.expm1(predictions).reshape(1, -1)[0]
+
+
+if __name__ == '__main__':
+    main()
