@@ -403,11 +403,11 @@ def main():
         ('skewness', SkewnessTransformer(all_data)),
         ('scale_data', StandardScaler())
     ])
-    scaled_train_data = pipeline.fit_transform(X=train_data, y=scaled_train_target)
-    estimator = xgb.XGBRegressor(n_estimators=375, max_depth=2, min_child_weight=1, learning_rate=0.10)
+    scaled_train_data = pipeline.fit_transform(X=train_data)
+    estimator = xgb.XGBRegressor(n_estimators=375, max_depth=2, min_child_weight=1, gamma=0.0015, learning_rate=0.10)
     # estimator = lgb.LGBMRegressor(objective='regression', n_estimators=450, max_depth=2, random_state=42)
     score = rmse_cv(estimator=estimator, X=scaled_train_data, y=scaled_train_target, cv=KFold(n_splits=5))
-    formatted_cv_score = "{:.4f} ({:.4f})".format(score.mean(), score.std())
+    formatted_cv_score = "{:.5f} ({:.5f})".format(score.mean(), score.std())
     print("        cv score: " + formatted_cv_score)
 
     ids = test["Id"]
