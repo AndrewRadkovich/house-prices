@@ -5,6 +5,7 @@ import pandas as pd
 from scipy.stats import skew
 from sklearn import metrics
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
@@ -246,27 +247,27 @@ class SimplifiedFeatures(BaseEstimator, TransformerMixin):
                                                          2: 1, 3: 1,  # average
                                                          4: 2, 5: 2  # good
                                                          })
-        data["SimplBsmtFinType1"] = data.BsmtFinType1.replace({1: 1,  # unfinished
+        data["SimplBsmtFinType1"] = data.BsmtFinType1.replace({1: 0,  # unfinished
                                                                2: 1, 3: 1,  # rec room
                                                                4: 2, 5: 2, 6: 2  # living quarters
                                                                })
-        data["SimplBsmtFinType2"] = data.BsmtFinType2.replace({1: 1,  # unfinished
+        data["SimplBsmtFinType2"] = data.BsmtFinType2.replace({1: 0,  # unfinished
                                                                2: 1, 3: 1,  # rec room
                                                                4: 2, 5: 2, 6: 2  # living quarters
                                                                })
-        data["SimplBsmtCond"] = data.BsmtCond.replace({1: 1,  # bad
+        data["SimplBsmtCond"] = data.BsmtCond.replace({1: 0,  # bad
                                                        2: 1, 3: 1,  # average
                                                        4: 2, 5: 2  # good
                                                        })
-        data["SimplBsmtQual"] = data.BsmtQual.replace({1: 1,  # bad
+        data["SimplBsmtQual"] = data.BsmtQual.replace({1: 0,  # bad
                                                        2: 1, 3: 1,  # average
                                                        4: 2, 5: 2  # good
                                                        })
-        data["SimplExterCond"] = data.ExterCond.replace({1: 1,  # bad
+        data["SimplExterCond"] = data.ExterCond.replace({1: 0,  # bad
                                                          2: 1, 3: 1,  # average
                                                          4: 2, 5: 2  # good
                                                          })
-        data["SimplExterQual"] = data.ExterQual.replace({1: 1,  # bad
+        data["SimplExterQual"] = data.ExterQual.replace({1: 0,  # bad
                                                          2: 1, 3: 1,  # average
                                                          4: 2, 5: 2  # good
                                                          })
