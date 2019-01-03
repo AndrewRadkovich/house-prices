@@ -210,13 +210,13 @@ class SimplifiedFeatures(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, data):
-        data["SimplOverallQual"] = data.OverallQual.replace({1: 1, 2: 1, 3: 1,  # bad
-                                                             4: 2, 5: 2, 6: 2,  # average
-                                                             7: 3, 8: 3, 9: 3, 10: 3  # good
+        data["SimplOverallQual"] = data.OverallQual.replace({1: 1, 2: 1, 3: 1, 4: 1,  # bad
+                                                             5: 2, 6: 2, 7: 2,  # average
+                                                             8: 3, 9: 3, 10: 3  # good
                                                              })
-        data["SimplOverallCond"] = data.OverallCond.replace({1: 1, 2: 1, 3: 1,  # bad
-                                                             4: 2, 5: 2, 6: 2,  # average
-                                                             7: 3, 8: 3, 9: 3, 10: 3  # good
+        data["SimplOverallCond"] = data.OverallQual.replace({1: 1, 2: 1, 3: 1, 4: 1,  # bad
+                                                             5: 2, 6: 2, 7: 2,  # average
+                                                             8: 3, 9: 3, 10: 3  # good
                                                              })
         data["SimplPoolQC"] = data.PoolQC.replace({1: 1, 2: 1,  # average
                                                    3: 2, 4: 2  # good
