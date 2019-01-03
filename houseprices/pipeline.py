@@ -397,13 +397,13 @@ def main():
         ('simplified_features', SimplifiedFeatures()),
         ('combined_features', CombinedFeatures()),
         ('polynomial_features', PolynomialFeatures()),
-        ('year_month_sold_feature', YearMonthSoldFeatureEnhancer()),
+        # ('year_month_sold_feature', YearMonthSoldFeatureEnhancer()),
         ('encode_labels', HousePricesLabelEncoder()),
         ('skewness', SkewnessTransformer(all_data)),
         ('scale_data', StandardScaler())
     ])
     scaled_train_data = pipeline.fit_transform(X=train_data, y=scaled_train_target)
-    estimator = xgb.XGBRegressor(n_estimators=350, max_depth=2, learning_rate=0.1)
+    estimator = xgb.XGBRegressor(n_estimators=375, max_depth=2, min_child_weight=1, learning_rate=0.10)
     # estimator = lgb.LGBMRegressor(objective='regression', n_estimators=450, max_depth=2, random_state=42)
     score = rmse_cv(estimator=estimator, X=scaled_train_data, y=scaled_train_target, cv=KFold(n_splits=5))
     formatted_cv_score = "{:.4f} ({:.4f})".format(score.mean(), score.std())
