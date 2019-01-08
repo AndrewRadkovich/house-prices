@@ -48,6 +48,5 @@ class LotFrotageImputer(BaseEstimator, TransformerMixin):
         p = np.polyfit(x=lot_area[t], y=lot_frontage[t], deg=1)
 
         where_lot_frontage_is_null = data['LotFrontage'].isnull()
-        data.loc[where_lot_frontage_is_null, 'LotFrontage'] = np.polyval(p, data.loc[
-            where_lot_frontage_is_null, 'LotArea'])
+        data.loc[where_lot_frontage_is_null, 'LotFrontage'] = np.polyval(p, data.loc[where_lot_frontage_is_null, 'LotArea'])
         return data
